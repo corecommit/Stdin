@@ -1,4 +1,4 @@
-# Pyre — Learn Python by Doing
+# Stdin — Learn Python by Doing
 
 A lightweight, in-browser Python learning environment. No installs. No sign-up. No server. Just open it and write code.
 
@@ -6,7 +6,7 @@ A lightweight, in-browser Python learning environment. No installs. No sign-up. 
 
 ## What it is
 
-Pyre is a self-contained coding practice tool for Python 3. It runs entirely in your browser using [Pyodide](https://pyodide.org/) — a full CPython runtime compiled to WebAssembly — so every line of code you write is executed by a real Python interpreter, locally, with no round-trips to any server.
+Stdin is a self-contained coding practice tool for Python 3. It runs entirely in your browser using [Pyodide](https://pyodide.org/) — a full CPython runtime compiled to WebAssembly — so every line of code you write is executed by a real Python interpreter, locally, with no round-trips to any server.
 
 There are **285 projects** spanning 4 difficulty levels and 33 topics, from printing Hello World to building dynamic programming algorithms and writing async coroutines. Each project has a problem description, runnable starter code, progressive hints, a reference solution, and auto-verification — the problem marks itself solved when your output is correct.
 
@@ -59,15 +59,15 @@ projects.js     Project data — 285 entries, each with title, difficulty,
 
 ## How solve verification works
 
-When you run code, Pyre captures stdout and checks it against the expected output for the current project.
+When you run code, Stdin captures stdout and checks it against the expected output for the current project.
 
 For problems with fixed output (no `input()`), it does a structural match — whitespace-normalised, with float tolerance.
 
-For problems where output depends on what the user types, Pyre distinguishes two cases:
+For problems where output depends on what the user types, Stdin distinguishes two cases:
 
 **Labelled output** (e.g. `Sum: 15.0`, `Diff: 5.0`) — The solution is silently re-run with the example's inputs to generate a reference. Your output is then compared label-by-label: the text labels must match exactly, but the numeric values are accepted regardless of what you typed in. This means entering `1` and `2` instead of the example's `10` and `5` still marks the problem solved, as long as your code prints the right labels.
 
-**Plain output** (e.g. a reversed string, odd/even) — Your output is matched directly against the example. If it doesn't match (because you typed a different input), Pyre falls back to checking that your output has the same number of lines as expected and is non-empty — accepting it as correct if the structure is right.
+**Plain output** (e.g. a reversed string, odd/even) — Your output is matched directly against the example. If it doesn't match (because you typed a different input), Stdin falls back to checking that your output has the same number of lines as expected and is non-empty — accepting it as correct if the structure is right.
 
 ---
 
