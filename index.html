@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="description" content="PyLab — Learn Python by doing. Write and execute real code in a live in-browser interpreter. No installs, no server required.">
+<title>PyLab — Python Projects</title>
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%230e0e0e'/><text x='6' y='23' font-size='18' font-family='monospace' fill='%23d8d8d8'>%3E_</text></svg>">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<div id="progress-bar"></div>
+
+<header>
+  <div class="header-left">
+    <button class="hamburger" id="hamburger-btn" onclick="toggleSidebar()" title="Toggle sidebar" aria-label="Toggle sidebar">
+      <i class="fa-solid fa-bars"></i>
+    </button>
+    <div class="logo"><i class="fa-solid fa-terminal"></i> pylab</div>
+  </div>
+  <div class="header-right">
+    <span id="solved-count" class="hbadge"><i class="fa-solid fa-circle-check"></i> 0 / 0 solved</span>
+    <span class="hbadge"><i class="fa-brands fa-python"></i> 3.12</span>
+    <span class="hbadge pyodide-status" id="pyodide-badge" title="Python runtime status">
+      <i class="fa-solid fa-circle-notch spin" id="pyodide-badge-icon"></i>
+      <span id="pyodide-badge-text">loading…</span>
+    </span>
+  </div>
+</header>
+
+<!-- Mobile sidebar overlay -->
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
+
+<div class="app">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-top">
+      <div class="sidebar-header">
+        <div class="sidebar-label"><i class="fa-solid fa-list"></i> Projects</div>
+        <button class="sidebar-close" onclick="closeSidebar()" title="Close sidebar">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="search-wrap">
+        <i class="fa-solid fa-magnifying-glass"></i>
+        <input type="text" id="search-input" placeholder="Search projects…" autocomplete="off" aria-label="Search projects">
+        <button class="search-clear" id="search-clear" onclick="clearSearch()" title="Clear search" style="display:none">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="filter-row">
+        <button class="ftab f-all"   onclick="setFilter('all',this)"    title="All projects">All</button>
+        <button class="ftab"         onclick="setFilter('easy',this)"   title="Easy projects">Easy</button>
+        <button class="ftab"         onclick="setFilter('medium',this)" title="Medium projects">Med</button>
+        <button class="ftab"         onclick="setFilter('hard',this)"   title="Hard projects">Hard</button>
+        <button class="ftab"         onclick="setFilter('expert',this)" title="Expert projects">Pro</button>
+      </div>
+      <div class="topic-filter-row" id="topic-filter-row">
+        <!-- populated by JS -->
+      </div>
+    </div>
+    <div class="project-list" id="proj-list"></div>
+    <div class="sidebar-footer">
+      <button class="btn-reset-progress" onclick="confirmResetProgress()" title="Reset all solved progress">
+        <i class="fa-solid fa-rotate-left"></i> Reset Progress
+      </button>
+    </div>
+  </aside>
+
+  <main class="main-panel">
+
+    <!-- WELCOME -->
+    <div class="welcome" id="welcome">
+      <div class="welcome-mark"><i class="fa-solid fa-code"></i></div>
+      <h1>pylab</h1>
+      <p>Learn Python by doing. Write and execute real code in a live in-browser interpreter — no installs, no server required.</p>
+      <div class="stats-row" id="welcome-stats">
+        <!-- populated dynamically -->
+      </div>
+      <div class="welcome-actions">
+        <button class="welcome-btn" id="welcome-start-btn" onclick="startFirstUnsolved()">
+          <i class="fa-solid fa-arrow-right"></i> Start coding
+        </button>
+        <button class="welcome-btn welcome-btn-ghost" onclick="toggleSidebar()">
+          <i class="fa-solid fa-list"></i> Browse projects
+        </button>
+      </div>
+    </div>
+
+    <!-- PROJECT VIEW -->
+    <div class="project-view" id="project-view" style="display:none">
+
+      <div class="pv-header">
+        <div class="pv-left">
+          <div class="pv-title" id="pv-title">—</div>
+          <div class="pv-meta">
+            <span id="pv-diff" class="diff-pill"></span>
+            <span id="pv-topic" class="topic-pill"></span>
+            <span id="pv-num" class="pv-num-pill"></span>
+          </div>
+        </div>
+        <div class="pv-actions">
+          <button class="btn btn-ghost" onclick="prevProject()" id="prev-btn" title="Previous project (Alt+Left)">
+            <i class="fa-solid fa-chevron-left"></i><span class="btn-label"> Prev</span>
+          </button>
+          <button class="btn btn-ghost" onclick="nextProject()" id="next-btn" title="Next project (Alt+Right)">
+            <span class="btn-label">Next </span><i class="fa-solid fa-chevron-right"></i>
+          </button>
+          <button class="btn btn-solved" id="solved-btn" style="cursor:default" title="Run your code with correct output to unlock">
+            <i class="fa-regular fa-circle"></i><span class="btn-label"> Not solved</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="tab-bar" role="tablist" aria-label="Project sections">
+        <div class="tab active" role="tab" tabindex="0" aria-selected="true"  aria-controls="panel-problem"  data-tab="problem"  onclick="switchTab('problem')"  onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('problem')"><i class="fa-regular fa-file-lines" aria-hidden="true"></i> <span class="tab-label">Problem</span></div>
+        <div class="tab"        role="tab" tabindex="0" aria-selected="false" aria-controls="panel-editor"   data-tab="editor"   onclick="switchTab('editor')"   onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('editor')"><i class="fa-solid fa-code" aria-hidden="true"></i> <span class="tab-label">Editor</span></div>
+        <div class="tab"        role="tab" tabindex="0" aria-selected="false" aria-controls="panel-solution" data-tab="solution" onclick="switchTab('solution')" onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('solution')"><i class="fa-regular fa-lightbulb" aria-hidden="true"></i> <span class="tab-label">Solution</span></div>
+      </div>
+
+      <div class="content-area">
+
+        <!-- Problem -->
+        <div class="tab-panel active" id="panel-problem" role="tabpanel" aria-labelledby="tab-problem">
+          <div class="problem-scroll" id="problem-content"></div>
+        </div>
+
+        <!-- Editor -->
+        <div class="tab-panel" id="panel-editor" role="tabpanel" aria-labelledby="tab-editor" style="overflow:hidden" hidden>
+          <div class="editor-panel">
+            <div class="editor-bar">
+              <div class="editor-bar-left">
+                <span class="lang-tag"><i class="fa-brands fa-python"></i> Python 3</span>
+                <span class="filename">solution.py</span>
+                <span class="shortcut"><i class="fa-solid fa-keyboard"></i> Ctrl+Enter to run</span>
+              </div>
+              <div class="editor-bar-right">
+                <button class="btn btn-ghost" onclick="resetCode()" title="Reset to starter code">
+                  <i class="fa-solid fa-rotate-left"></i><span class="btn-label"> Reset</span>
+                </button>
+                <button class="btn btn-stop" id="stop-btn" onclick="stopCode()" title="Stop execution" style="display:none">
+                  <i class="fa-solid fa-stop"></i><span class="btn-label"> Stop</span>
+                </button>
+                <button class="btn btn-run" id="run-btn" onclick="runCode()">
+                  <i class="fa-solid fa-play"></i><span class="btn-label"> Run</span>
+                </button>
+              </div>
+            </div>
+
+            <!-- Resize handle -->
+            <div id="cm-wrap"></div>
+            <div class="resize-handle" id="resize-handle" title="Drag to resize">
+              <div class="resize-handle-bar"></div>
+            </div>
+
+            <!-- Terminal -->
+            <div class="terminal-pane" id="terminal-pane" onclick="focusTermInput()">
+              <div class="terminal-bar">
+                <span class="terminal-label"><i class="fa-solid fa-square-terminal"></i> Terminal</span>
+                <div class="terminal-bar-right">
+                  <button class="term-clear-btn" onclick="event.stopPropagation(); clearTerminal()" title="Clear terminal">
+                    <i class="fa-solid fa-trash-can"></i>
+                  </button>
+                  <div class="status-row">
+                    <span class="status-dot idle" id="status-dot"></span>
+                    <span id="status-text">idle</span>
+                  </div>
+                </div>
+              </div>
+              <div class="terminal-body" id="terminal-body">
+                <div class="term-placeholder"><i class="fa-regular fa-circle-play"></i> Run your code to see output here…</div>
+              </div>
+              <div class="terminal-input-row" id="terminal-input-row">
+                <span class="term-prompt" id="term-prompt-text"></span>
+                <input type="text" id="terminal-input" class="terminal-input-field"
+                       autocomplete="off" spellcheck="false" autocorrect="off"
+                       placeholder="waiting for program…" disabled>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- Solution -->
+        <div class="tab-panel" id="panel-solution" role="tabpanel" aria-labelledby="tab-solution" hidden>
+          <div class="solution-scroll">
+            <div id="sol-lock" class="solution-lock">
+              <div class="lock-mark"><i class="fa-solid fa-lock"></i></div>
+              <p class="lock-text">Try to solve it yourself first. When you're ready, reveal the reference solution.</p>
+              <button class="btn-reveal" onclick="revealSolution()"><i class="fa-solid fa-unlock"></i> Reveal solution</button>
+            </div>
+            <div id="sol-code-block" class="sol-code-block">
+              <div class="section-block">
+                <div class="section-title-row">
+                  <div class="section-title"><i class="fa-solid fa-code"></i> Solution</div>
+                  <button class="btn-copy" id="copy-btn" onclick="copySolution()" title="Copy code">
+                    <i class="fa-regular fa-copy"></i> Copy
+                  </button>
+                </div>
+                <pre class="solution-pre" id="sol-pre"></pre>
+              </div>
+              <div class="section-block">
+                <div class="section-title"><i class="fa-regular fa-comment-dots"></i> Explanation</div>
+                <div class="solution-explanation" id="sol-explanation"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Confirm reset modal -->
+<div class="modal-backdrop" id="reset-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="reset-modal-title" aria-hidden="true">
+  <div class="modal">
+    <div class="modal-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+    <div class="modal-title" id="reset-modal-title">Reset all progress?</div>
+    <div class="modal-body">This will clear all solved projects. This action cannot be undone.</div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeResetModal()"><i class="fa-solid fa-xmark"></i> Cancel</button>
+      <button class="btn btn-danger" onclick="doResetProgress()"><i class="fa-solid fa-rotate-left"></i> Reset</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pyodide -->
+<script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
+<!-- CodeMirror -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/mode/python/python.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
+<!-- App -->
+<script src="projects.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
