@@ -1,6 +1,6 @@
 # Stdin — Learn Python by Doing
 
-A lightweight, in-browser Python learning environment. No installs. No sign-up. No server. Just open it and write code.
+Learn Python by doing. Write and run real code in a live in-browser interpreter across 285 projects — from Hello World to dynamic programming — with no installs and no server required.
 
 ---
 
@@ -20,9 +20,17 @@ There are **285 projects** spanning 4 difficulty levels and 33 topics, from prin
 - **285 projects** across Easy / Medium / Hard / Expert
 - **33 topics** — Basics, Strings, OOP, Recursion, Dynamic Programming, Async, Metaprogramming, and more
 - **Auto-verification** — output is checked against expected results; solved state persists in localStorage
+- **Submit to leaderboard** — after solving, submit your time to compete for fastest solves per problem
+- **Global leaderboard** — Most Solved, Fastest Average, and Recent Solves tabs
+- **Auth system** — register with a username and password to track progress across devices
 - **Progressive hints** — reveal one hint at a time, not all at once
 - **Solution tab** — locked by default; reveals reference solution + explanation when you're ready
-- **Keyboard-first** — `Ctrl+Enter` runs, `Alt+←/→` navigates projects, `Ctrl+1/2/3` switches tabs, `Escape` closes modals
+- **Streak tracking** — daily solve streak shown on the welcome screen
+- **Progress by topic** — bar chart showing solved/total per topic
+- **Random problem** — picks an unsolved problem at random
+- **Code persistence** — your editor code is saved per problem and restored on revisit
+- **Execution time** — shown in the terminal bar after each run
+- **Keyboard-first** — `Ctrl+Enter` runs, `Alt+←/→` navigates, `Ctrl+1/2/3` switches tabs, `Escape` closes modals
 - **Mobile-friendly** — fully responsive, touch-compatible resize handle, 44px tap targets
 - **Light + dark mode** — follows system preference via `prefers-color-scheme`
 - **Changelog panel** — fetches and renders `CHANGELOG.md` from this repo
@@ -36,9 +44,10 @@ There are **285 projects** spanning 4 difficulty levels and 33 topics, from prin
 |---|---|
 | Python runtime | [Pyodide 0.25](https://pyodide.org/) (CPython 3.12 → WASM) |
 | Editor | [CodeMirror 5](https://codemirror.net/) |
+| Database | [Supabase](https://supabase.com/) (leaderboard + auth) |
 | Fonts | IBM Plex Mono + IBM Plex Sans (Google Fonts) |
 | Icons | Font Awesome 6 |
-| Storage | `localStorage` (solved state only) |
+| Storage | `localStorage` (solved state, code persistence, streak) |
 | Build | None — plain HTML + CSS + JS, zero build step |
 
 ---
@@ -48,7 +57,8 @@ There are **285 projects** spanning 4 difficulty levels and 33 topics, from prin
 ```
 index.html            Main shell — layout, header, sidebar, modals
 app.js                All application logic — editor, Pyodide init, terminal I/O,
-                      sidebar, routing, solve verification, autocomplete, changelog
+                      sidebar, routing, solve verification, autocomplete,
+                      leaderboard, auth, changelog
 styles.css            All styles — theme variables, responsive breakpoints,
                       CodeMirror theme, animations
 projects.js           Loader — merges all difficulty files and auto-assigns IDs
@@ -120,6 +130,16 @@ For problems where **output depends on user input**, Stdin runs the reference so
 - Non-numeric tokens (labels like `Sum:`, `Result:`) must match exactly
 - Numeric positions just need to contain a number — the value can differ
 - This means entering `1` and `2` instead of the example's `10` and `5` still marks the problem solved, as long as your code prints the right structure
+
+---
+
+## Leaderboard & auth
+
+Stdin uses [Supabase](https://supabase.com/) for the leaderboard. After solving a problem a **Submit** button appears — clicking it submits your solve time. You can resubmit to beat your own best time (60-second cooldown between submissions).
+
+Revealing the solution tab disqualifies that problem from the leaderboard.
+
+Register with a username and password to have your times tracked across devices. Passwords are hashed with SHA-256 client-side before being stored. Guests can play without an account but won't appear on the leaderboard.
 
 ---
 
