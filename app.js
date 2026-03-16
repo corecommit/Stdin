@@ -239,11 +239,18 @@ function saveCodeForProject(id, code) {
 }
 
 // ── EXECUTION TIME ────────────────────────
+// Round to nearest 10ms under 1s, nearest 100ms above — smooths out scheduler noise
+function roundTime(ms) {
+  if (ms < 1000) return Math.round(ms / 10) * 10;
+  return Math.round(ms / 100) * 100;
+}
+
 function setExecTime(ms) {
   const el = document.getElementById('exec-time');
   if (!el) return;
   if (ms === null) { el.style.display = 'none'; return; }
-  const label = ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`;
+  const r = roundTime(ms);
+  const label = r < 1000 ? `~${r}ms` : `~${(r / 1000).toFixed(1)}s`;
   el.textContent = label;
   el.style.display = 'inline';
 }
@@ -970,7 +977,7 @@ async function runCode() {
     clearTimeout(timeoutHandle);
     termFlushBuf();
     if (!runAbortFlag) {
-      const elapsed = Math.round(performance.now() - runStartTime);
+      const elapsed = roundTime(performance.now() - runStartTime);
       setExecTime(elapsed);
       setStatus('success', 'done');
       await new Promise(r => setTimeout(r, 0));
@@ -979,7 +986,7 @@ async function runCode() {
   } catch (err) {
     clearTimeout(timeoutHandle);
     termFlushBuf();
-    const elapsed = Math.round(performance.now() - runStartTime);
+    const elapsed = roundTime(performance.now() - runStartTime);
     setExecTime(elapsed);
     if (!runAbortFlag) {
       const raw   = err.message || String(err);
@@ -1338,8 +1345,8 @@ function openProject(id) {
 
   switchTab('problem');
   updateSolvedBtn();
-  // Restore submit button if this problem was solved this session and solution wasn't revealed
-  if (solveTimeMs[id] !== undefined && !revealedSet.has(id)) {
+  // Show submit button if already solved and solution not revealed
+  if (solved.has(id) && !revealedSet.has(id)) {
     showSubmitButton();
   }
   renderSidebar(activeFilter, document.getElementById('search-input').value);
@@ -1763,7 +1770,7 @@ async function checkAndMarkSolved(actualOutput) {
     renderSidebar(activeFilter, document.getElementById('search-input').value);
     // Store solve time and show submit button (no auto-submit)
     if (!revealedSet.has(currentId)) {
-      solveTimeMs[currentId] = Math.round(performance.now() - runStartTime);
+      solveTimeMs[currentId] = roundTime(performance.now() - runStartTime);
       showSubmitButton();
     }
   }
@@ -2374,8 +2381,9 @@ function hideSubmitButton() {
 async function submitToLeaderboard() {
   const btn = document.getElementById('submit-btn');
   const id  = currentId;
+  // If no session time (solved in a previous session), we can't submit a time
   const ms  = solveTimeMs[id];
-  if (ms === undefined) return;
+  if (ms === undefined && !solved.has(id)) return;
 
   // Rate limit check
   const lastAt = lastSubmitAt[id] || 0;
@@ -2402,14 +2410,41 @@ async function submitToLeaderboard() {
   const user = getLocalUser();
   if (!user) {
     await openAuthModal();
-    if (!getLocalUser()) return; // still not logged in after modal
+    if (!getLocalUser()) return;
+  }
+
+  // No session time = solved in a previous session.
+  // Run the solution silently to get a time, then submit.
+  if (ms === undefined) {
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fa-solid fa-circle-notch spin"></i><span class="btn-label"> Timing…</span>';
+    const p = PROJECTS[id];
+    if (p && pyodideReady) {
+      try {
+        const checkable = p.examples.filter(ex => ex.output && ex.output.trim());
+        const stdin = parseExampleInput(checkable[0]?.input || '');
+        const t0 = performance.now();
+        await runSolutionSilently(p.solution, stdin);
+        solveTimeMs[id] = roundTime(performance.now() - t0);
+      } catch (e) {
+        console.warn('Silent run for timing failed:', e);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-upload"></i><span class="btn-label"> Submit</span>';
+        return;
+      }
+    } else {
+      btn.disabled = false;
+      btn.innerHTML = '<i class="fa-solid fa-upload"></i><span class="btn-label"> Submit</span>';
+      return;
+    }
   }
 
   // Submit
+  const finalMs = solveTimeMs[id];
   btn.disabled = true;
   btn.innerHTML = '<i class="fa-solid fa-circle-notch spin"></i><span class="btn-label"> Submitting…</span>';
 
-  await submitSolveToLeaderboard(id, ms);
+  await submitSolveToLeaderboard(id, finalMs);
   lastSubmitAt[id] = Date.now();
 
   btn.innerHTML = '<i class="fa-solid fa-check"></i><span class="btn-label"> Submitted!</span>';
@@ -2604,11 +2639,12 @@ async function loadGlobalLeaderboard(tab) {
 }
 
 function formatTime(ms) {
-  if (ms < 1000) return `${ms}ms`;
-  if (ms < 60000) return `${(ms/1000).toFixed(1)}s`;
-  const m = Math.floor(ms / 60000);
-  const s = Math.floor((ms % 60000) / 1000);
-  return `${m}m ${s}s`;
+  const r = roundTime(ms);
+  if (r < 1000) return `~${r}ms`;
+  if (r < 60000) return `~${(r/1000).toFixed(1)}s`;
+  const m = Math.floor(r / 60000);
+  const s = Math.floor((r % 60000) / 1000);
+  return `~${m}m ${s}s`;
 }
 
 // ── UTILS ─────────────────────────────────
