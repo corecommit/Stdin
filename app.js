@@ -15,6 +15,13 @@ const savedCode    = {};
 // Execution timing
 let runStartTime   = 0;
 
+// Stores the solve time for each project (set when auto-verified correct)
+const solveTimeMs  = {};
+
+// Rate limit: tracks last submit time per project
+const lastSubmitAt = {};
+const SUBMIT_COOLDOWN_MS = 60000; // 60 seconds
+
 // ── PYODIDE STATE ─────────────────────────
 let pyodide          = null;
 let pyodideReady     = false;
@@ -74,8 +81,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('terminal-input').addEventListener('keydown', onTerminalInputKey);
 
-  const usernameInput = document.getElementById('username-input');
-  if (usernameInput) usernameInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitUsername(); });
+  // Auth form Enter key handlers
+  ['login-username','login-password'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+  });
+  ['reg-username','reg-password','reg-confirm'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.addEventListener('keydown', e => { if (e.key === 'Enter') doRegister(); });
+  });
+
+  updateAuthBadge();
   termHideInput();
 
   // Pre-load Pyodide — store the shared promise
@@ -703,7 +719,7 @@ function bootProgress(pct, msg) {
   const bar    = document.getElementById('boot-bar');
   const status = document.getElementById('boot-status');
   if (bar)    bar.style.width = pct + '%';
-  if (status) status.textContent = msg;
+  if (status) status.textContent = msg.replace(/…$/, '');
 }
 
 function bootDismiss() {
@@ -896,9 +912,9 @@ async function runCode() {
   const code = editor ? editor.getValue() : '';
   if (!code.trim()) return;
 
-  // Prompt for username on first run if not set yet
-  if (!getLocalUser()) {
-    await new Promise(resolve => ensureUser(() => resolve()));
+  // Prompt for login on first run if not signed in and haven't skipped yet
+  if (!getLocalUser() && sessionStorage.getItem('pylab_guest') !== '1') {
+    await openAuthModal();
   }
 
   const runBtn  = document.getElementById('run-btn');
@@ -1296,6 +1312,7 @@ function openProject(id) {
 
   clearTerminal();
   setExecTime(null);
+  hideSubmitButton();
   termHideInput();
   setStatus('idle', 'idle');
   _lineBuf      = '';
@@ -1321,6 +1338,10 @@ function openProject(id) {
 
   switchTab('problem');
   updateSolvedBtn();
+  // Restore submit button if this problem was solved this session and solution wasn't revealed
+  if (solveTimeMs[id] !== undefined && !revealedSet.has(id)) {
+    showSubmitButton();
+  }
   renderSidebar(activeFilter, document.getElementById('search-input').value);
   flashProgress();
 }
@@ -1740,10 +1761,10 @@ async function checkAndMarkSolved(actualOutput) {
     updateSolvedBtn(true);
     updateTopicProgress();
     renderSidebar(activeFilter, document.getElementById('search-input').value);
-    // Submit to leaderboard with the execution time
-    // Only submit to leaderboard if solution was never revealed
+    // Store solve time and show submit button (no auto-submit)
     if (!revealedSet.has(currentId)) {
-      submitSolveToLeaderboard(currentId, Math.round(performance.now() - runStartTime));
+      solveTimeMs[currentId] = Math.round(performance.now() - runStartTime);
+      showSubmitButton();
     }
   }
 }
@@ -1962,7 +1983,8 @@ function bindKeys() {
       closeFilterPanel();
       closeChangelog();
       closeGlobalLeaderboard();
-      closeUsernameModal();
+      closeAuthModal();
+      closeUserMenu();
     }
   });
 }
@@ -2130,73 +2152,276 @@ function initSupabase() {
 }
 
 // ── USER IDENTITY ─────────────────────────
+// ── AUTH ──────────────────────────────────
 function getLocalUser() {
   try { return JSON.parse(localStorage.getItem('pylab_user') || 'null'); } catch { return null; }
 }
 function setLocalUser(u) {
   localStorage.setItem('pylab_user', JSON.stringify(u));
+  sessionStorage.removeItem('pylab_guest');
+  updateAuthBadge();
+}
+function clearLocalUser() {
+  localStorage.removeItem('pylab_user');
+  updateAuthBadge();
+}
+
+function updateAuthBadge() {
+  const u         = getLocalUser();
+  const badge     = document.getElementById('auth-user-badge');
+  const label     = document.getElementById('auth-username-display');
+  const signinBtn = document.getElementById('auth-signin-btn');
+  const isGuest   = sessionStorage.getItem('pylab_guest') === '1';
+
+  if (u) {
+    // Logged in
+    if (label) label.textContent = u.username;
+    if (badge) badge.style.display = 'inline-flex';
+    if (signinBtn) signinBtn.style.display = 'none';
+  } else if (isGuest) {
+    // Skipped auth this session — show sign in button
+    if (badge) badge.style.display = 'none';
+    if (signinBtn) signinBtn.style.display = 'inline-flex';
+  } else {
+    // Haven't been prompted yet
+    if (badge) badge.style.display = 'none';
+    if (signinBtn) signinBtn.style.display = 'none';
+  }
+}
+
+function toggleUserMenu() {
+  document.getElementById('auth-user-menu').classList.toggle('open');
+}
+function closeUserMenu() {
+  document.getElementById('auth-user-menu').classList.remove('open');
+}
+
+// Close user menu on outside click
+document.addEventListener('click', e => {
+  const badge = document.getElementById('auth-user-badge');
+  if (badge && !badge.contains(e.target)) closeUserMenu();
+});
+
+async function hashPassword(password) {
+  const buf  = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(password));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+// ── AUTH MODAL ────────────────────────────
+let authResolve = null;
+
+function openAuthModal() {
+  return new Promise(resolve => {
+    authResolve = resolve;
+    const modal = document.getElementById('auth-modal');
+    modal.style.display = 'flex';
+    modal.setAttribute('aria-hidden', 'false');
+    switchAuthTab('login');
+  });
+}
+
+function switchAuthStep(step) {
+  document.getElementById('auth-step-pitch').style.display = step === 'pitch' ? 'flex' : 'none';
+  document.getElementById('auth-step-form').style.display  = step === 'form'  ? 'flex' : 'none';
+  if (step === 'form') {
+    setTimeout(() => document.getElementById('login-username').focus(), 50);
+  }
+}
+
+function closeAuthModal() {
+  const modal = document.getElementById('auth-modal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+  switchAuthStep('pitch'); // reset to pitch for next open
+  ['login-username','login-password','reg-username','reg-password','reg-confirm'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.value = '';
+  });
+  ['login-error','reg-error'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.textContent = '';
+  });
+}
+
+function switchAuthTab(tab) {
+  document.getElementById('auth-form-login').style.display    = tab === 'login'    ? 'flex' : 'none';
+  document.getElementById('auth-form-register').style.display = tab === 'register' ? 'flex' : 'none';
+  document.getElementById('auth-tab-login').classList.toggle('active',    tab === 'login');
+  document.getElementById('auth-tab-register').classList.toggle('active', tab === 'register');
+  setTimeout(() => {
+    const el = document.getElementById(tab === 'login' ? 'login-username' : 'reg-username');
+    if (el) el.focus();
+  }, 50);
+}
+
+function skipAuth() {
+  sessionStorage.setItem('pylab_guest', '1');
+  closeAuthModal();
+  updateAuthBadge();
+  if (authResolve) { authResolve(null); authResolve = null; }
+}
+
+async function doLogin() {
+  const username = document.getElementById('login-username').value.trim().toLowerCase();
+  const password = document.getElementById('login-password').value;
+  const errEl    = document.getElementById('login-error');
+  const btn      = document.getElementById('login-submit');
+
+  if (!username) { errEl.textContent = 'Enter your username.'; return; }
+  if (!password) { errEl.textContent = 'Enter your password.'; return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-circle-notch spin"></i> Signing in…';
+  errEl.textContent = '';
+  initSupabase();
+
+  try {
+    const hash = await hashPassword(password);
+    const { data, error } = await sb.from('users')
+      .select('id, username').eq('username', username).eq('password_hash', hash).maybeSingle();
+
+    if (error) throw error;
+    if (!data) { errEl.textContent = 'Wrong username or password.'; btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Sign in'; return; }
+
+    const user = { id: data.id, username: data.username };
+    setLocalUser(user);
+    closeAuthModal();
+    if (authResolve) { authResolve(user); authResolve = null; }
+  } catch (e) {
+    errEl.textContent = 'Error signing in. Try again.';
+    console.error(e);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-arrow-right-to-bracket"></i> Sign in';
+}
+
+async function doRegister() {
+  const username = document.getElementById('reg-username').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  const password = document.getElementById('reg-password').value;
+  const confirm  = document.getElementById('reg-confirm').value;
+  const errEl    = document.getElementById('reg-error');
+  const btn      = document.getElementById('reg-submit');
+
+  document.getElementById('reg-username').value = username;
+  if (!username || username.length < 2) { errEl.textContent = 'Username must be at least 2 characters.'; return; }
+  if (username.length > 20)             { errEl.textContent = 'Username max 20 characters.'; return; }
+  if (!password || password.length < 6) { errEl.textContent = 'Password must be at least 6 characters.'; return; }
+  if (password !== confirm)             { errEl.textContent = 'Passwords do not match.'; return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-circle-notch spin"></i> Creating account…';
+  errEl.textContent = '';
+  initSupabase();
+
+  try {
+    const { data: existing } = await sb.from('users').select('id').eq('username', username).maybeSingle();
+    if (existing) { errEl.textContent = 'Username taken, try another.'; btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create account'; return; }
+
+    const hash = await hashPassword(password);
+    const { data, error } = await sb.from('users').insert({ username, password_hash: hash }).select().single();
+    if (error) throw error;
+
+    const user = { id: data.id, username: data.username };
+    setLocalUser(user);
+    closeAuthModal();
+    if (authResolve) { authResolve(user); authResolve = null; }
+  } catch (e) {
+    errEl.textContent = 'Error creating account. Try again.';
+    console.error(e);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-user-plus"></i> Create account';
+}
+
+function togglePasswordVis(inputId, btn) {
+  const input = document.getElementById(inputId);
+  const icon  = btn.querySelector('i');
+  if (input.type === 'password') {
+    input.type = 'text';
+    icon.className = 'fa-regular fa-eye-slash';
+  } else {
+    input.type = 'password';
+    icon.className = 'fa-regular fa-eye';
+  }
+}
+
+function doLogout() {
+  clearLocalUser();
+  closeUserMenu();
 }
 
 async function ensureUser(onDone) {
   const u = getLocalUser();
   if (u) { onDone(u); return; }
-  // Show username modal
-  const modal = document.getElementById('username-modal');
-  modal.style.display = 'flex';
-  modal.setAttribute('aria-hidden', 'false');
-  modal._onDone = onDone;
-  setTimeout(() => document.getElementById('username-input').focus(), 100);
-}
-
-async function submitUsername() {
-  const input = document.getElementById('username-input');
-  const errEl = document.getElementById('username-error');
-  const btn   = document.getElementById('username-submit-btn');
-  const name  = input.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
-  input.value = name;
-
-  if (!name || name.length < 2) { errEl.textContent = 'At least 2 characters.'; return; }
-  if (name.length > 20)         { errEl.textContent = 'Max 20 characters.';      return; }
-
-  btn.disabled = true;
-  btn.innerHTML = '<i class="fa-solid fa-circle-notch spin"></i> Saving…';
-  errEl.textContent = '';
-  initSupabase();
-
-  try {
-    // Check if username taken
-    const { data: existing } = await sb.from('users').select('id').eq('username', name).maybeSingle();
-    if (existing) { errEl.textContent = 'Username taken, try another.'; btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Save'; return; }
-
-    const { data, error } = await sb.from('users').insert({ username: name }).select().single();
-    if (error) throw error;
-
-    const user = { id: data.id, username: data.username };
-    setLocalUser(user);
-    closeUsernameModal();
-    const modal = document.getElementById('username-modal');
-    if (modal._onDone) modal._onDone(user);
-  } catch (e) {
-    errEl.textContent = 'Error saving. Try again.';
-    console.error(e);
-  }
-  btn.disabled = false;
-  btn.innerHTML = '<i class="fa-solid fa-check"></i> Save';
-}
-
-function skipUsername() {
-  closeUsernameModal();
-  const modal = document.getElementById('username-modal');
-  if (modal._onDone) modal._onDone(null);
-}
-
-function closeUsernameModal() {
-  const modal = document.getElementById('username-modal');
-  modal.style.display = 'none';
-  modal.setAttribute('aria-hidden', 'true');
+  const user = await openAuthModal();
+  onDone(user);
 }
 
 // ── SUBMIT SOLVE ──────────────────────────
+// ── SUBMIT BUTTON ─────────────────────────
+function showSubmitButton() {
+  const btn = document.getElementById('submit-btn');
+  if (!btn) return;
+  btn.style.display = 'inline-flex';
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-upload"></i><span class="btn-label"> Submit</span>';
+  btn.title = 'Submit your solve time to the leaderboard';
+}
+
+function hideSubmitButton() {
+  const btn = document.getElementById('submit-btn');
+  if (btn) btn.style.display = 'none';
+}
+
+async function submitToLeaderboard() {
+  const btn = document.getElementById('submit-btn');
+  const id  = currentId;
+  const ms  = solveTimeMs[id];
+  if (ms === undefined) return;
+
+  // Rate limit check
+  const lastAt = lastSubmitAt[id] || 0;
+  const sinceLastMs = Date.now() - lastAt;
+  if (sinceLastMs < SUBMIT_COOLDOWN_MS) {
+    const secsLeft = Math.ceil((SUBMIT_COOLDOWN_MS - sinceLastMs) / 1000);
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-clock"></i><span class="btn-label"> Wait ${secsLeft}s</span>`;
+    // Countdown
+    const interval = setInterval(() => {
+      const left = Math.ceil((SUBMIT_COOLDOWN_MS - (Date.now() - lastAt)) / 1000);
+      if (left <= 0) {
+        clearInterval(interval);
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fa-solid fa-upload"></i><span class="btn-label"> Submit</span>';
+      } else {
+        btn.innerHTML = `<i class="fa-solid fa-clock"></i><span class="btn-label"> Wait ${left}s</span>`;
+      }
+    }, 1000);
+    return;
+  }
+
+  // Ensure logged in
+  const user = getLocalUser();
+  if (!user) {
+    await openAuthModal();
+    if (!getLocalUser()) return; // still not logged in after modal
+  }
+
+  // Submit
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-circle-notch spin"></i><span class="btn-label"> Submitting…</span>';
+
+  await submitSolveToLeaderboard(id, ms);
+  lastSubmitAt[id] = Date.now();
+
+  btn.innerHTML = '<i class="fa-solid fa-check"></i><span class="btn-label"> Submitted!</span>';
+  btn.style.background = 'rgba(74,222,128,0.15)';
+  setTimeout(() => {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fa-solid fa-upload"></i><span class="btn-label"> Submit</span>';
+    btn.style.background = '';
+  }, 2000);
+}
+
+
 async function submitSolveToLeaderboard(projectId, timeMs) {
   initSupabase();
   const p    = PROJECTS[projectId];

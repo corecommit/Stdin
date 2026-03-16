@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="description" content="stdin — Learn Python by doing. Write and execute real code in a live in-browser interpreter. No installs, no server required.">
 <title>Stdin — Python Projects</title>
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='4' fill='%230e0e0e'/><text x='6' y='23' font-size='18' font-family='monospace' fill='%23d8d8d8'>%3E_</text></svg>">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23141414'/><rect x='1' y='1' width='30' height='30' rx='5' fill='none' stroke='%23333' stroke-width='1'/><polyline points='10,10 5,16 10,22' fill='none' stroke='%23d8d8d8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/><polyline points='22,10 27,16 22,22' fill='none' stroke='%23d8d8d8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/><line x1='18' y1='9' x2='14' y2='23' stroke='%23d8d8d8' stroke-width='2' stroke-linecap='round'/></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.css">
@@ -21,7 +21,7 @@
     <div class="boot-bar-wrap">
       <div class="boot-bar" id="boot-bar"></div>
     </div>
-    <div class="boot-status" id="boot-status">Loading Python runtime…</div>
+    <div class="boot-status" id="boot-status">Loading Python runtime</div>
   </div>
 </div>
 
@@ -51,6 +51,22 @@
       <i class="fa-solid fa-circle-notch spin" id="pyodide-badge-icon"></i>
       <span id="pyodide-badge-text">loading…</span>
     </span>
+    <button class="hbadge hbadge-signin" id="auth-signin-btn" onclick="openAuthModal()" style="display:none" title="Sign in or register">
+      <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign in
+    </button>
+    <div class="auth-user-badge" id="auth-user-badge" style="display:none" onclick="toggleUserMenu()" role="button" tabindex="0">
+      <i class="fa-solid fa-user"></i>
+      <span id="auth-username-display"></span>
+      <i class="fa-solid fa-chevron-down" style="font-size:8px"></i>
+      <div class="auth-user-menu" id="auth-user-menu">
+        <button class="auth-menu-item" onclick="event.stopPropagation(); openGlobalLeaderboard(); closeUserMenu()">
+          <i class="fa-solid fa-trophy"></i> Leaderboard
+        </button>
+        <button class="auth-menu-item danger" onclick="event.stopPropagation(); doLogout()">
+          <i class="fa-solid fa-arrow-right-from-bracket"></i> Sign out
+        </button>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -187,7 +203,7 @@
       <div class="tab-bar" role="tablist" aria-label="Project sections">
         <div class="tab active" role="tab" tabindex="0" aria-selected="true"  aria-controls="panel-problem"     data-tab="problem"     onclick="switchTab('problem')"     onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('problem')"><i class="fa-regular fa-file-lines" aria-hidden="true"></i> <span class="tab-label">Problem</span></div>
         <div class="tab"        role="tab" tabindex="0" aria-selected="false" aria-controls="panel-editor"      data-tab="editor"      onclick="switchTab('editor')"      onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('editor')"><i class="fa-solid fa-code" aria-hidden="true"></i> <span class="tab-label">Editor</span></div>
-        <div class="tab"        role="tab" tabindex="0" aria-selected="false" aria-controls="panel-solution"   data-tab="solution"   onclick="switchTab('solution')"   onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('solution')"><i class="fa-regular fa-lightbulb" aria-hidden="true"></i> <span class="tab-label">Solution</span></div>
+        <div class="tab"        role="tab" tabindex="0" aria-selected="false" aria-controls="panel-solution"    data-tab="solution"    onclick="switchTab('solution')"    onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('solution')"><i class="fa-regular fa-lightbulb" aria-hidden="true"></i> <span class="tab-label">Solution</span></div>
         <div class="tab"        role="tab" tabindex="0" aria-selected="false" aria-controls="panel-leaderboard" data-tab="leaderboard" onclick="switchTab('leaderboard')" onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('leaderboard')"><i class="fa-solid fa-trophy" aria-hidden="true"></i> <span class="tab-label">Leaderboard</span></div>
       </div>
 
@@ -213,6 +229,9 @@
                 </button>
                 <button class="btn btn-stop" id="stop-btn" onclick="stopCode()" title="Stop execution" style="display:none">
                   <i class="fa-solid fa-stop"></i><span class="btn-label"> Stop</span>
+                </button>
+                <button class="btn btn-submit" id="submit-btn" onclick="submitToLeaderboard()" style="display:none" title="Submit your solve time to the leaderboard">
+                  <i class="fa-solid fa-upload"></i><span class="btn-label"> Submit</span>
                 </button>
                 <button class="btn btn-run" id="run-btn" onclick="runCode()">
                   <i class="fa-solid fa-play"></i><span class="btn-label"> Run</span>
@@ -297,18 +316,101 @@
   </main>
 </div>
 
-<!-- Username modal -->
-<div class="modal-backdrop" id="username-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="username-modal-title" aria-hidden="true">
-  <div class="modal">
-    <div class="modal-icon"><i class="fa-solid fa-user"></i></div>
-    <div class="modal-title" id="username-modal-title">Choose a username</div>
-    <div class="modal-body">Pick a username to appear on the leaderboard. You can't change this later.</div>
-    <input type="text" id="username-input" class="username-input" placeholder="e.g. corecommit" maxlength="20" autocomplete="off" spellcheck="false">
-    <div class="username-error" id="username-error"></div>
-    <div class="modal-actions">
-      <button class="btn btn-ghost" onclick="skipUsername()"><i class="fa-solid fa-xmark"></i> Skip</button>
-      <button class="btn btn-run" id="username-submit-btn" onclick="submitUsername()"><i class="fa-solid fa-check"></i> Save</button>
+<!-- Auth modal -->
+<div class="modal-backdrop" id="auth-modal" style="display:none" role="dialog" aria-modal="true" aria-label="Sign in" aria-hidden="true">
+  <div class="auth-modal">
+
+    <!-- Step 1: Pitch -->
+    <div class="auth-step" id="auth-step-pitch">
+      <div class="auth-step-header">
+        <div class="auth-pitch-logo"><i class="fa-solid fa-terminal"></i></div>
+        <div class="auth-pitch-name">stdin</div>
+        <p class="auth-pitch-sub">Before you dive in — here's why creating a free account is worth it.</p>
+      </div>
+      <ul class="auth-pitch-list">
+        <li><i class="fa-solid fa-trophy"></i><span><strong>Leaderboard</strong> — compete for fastest solve times per problem</span></li>
+        <li><i class="fa-solid fa-ranking-star"></i><span><strong>Global rankings</strong> — see where you stand against everyone</span></li>
+        <li><i class="fa-solid fa-rotate"></i><span><strong>Sync across devices</strong> — your progress follows you everywhere</span></li>
+        <li><i class="fa-solid fa-fire"></i><span><strong>Streak tracking</strong> — keep your daily coding streak alive</span></li>
+        <li><i class="fa-solid fa-shield-halved"></i><span><strong>Your data, your account</strong> — tied to your username, not a device</span></li>
+      </ul>
+      <div class="auth-step-actions">
+        <button class="auth-submit" onclick="switchAuthStep('form')">
+          Continue <i class="fa-solid fa-arrow-right"></i>
+        </button>
+        <button class="auth-skip" onclick="skipAuth()">Continue as guest <i class="fa-solid fa-arrow-right"></i></button>
+      </div>
     </div>
+
+    <!-- Step 2: Form -->
+    <div class="auth-step" id="auth-step-form" style="display:none">
+      <div class="auth-step-nav">
+        <button class="auth-back" onclick="switchAuthStep('pitch')">
+          <i class="fa-solid fa-arrow-left"></i> Back
+        </button>
+        <div class="auth-step-dots">
+          <span class="auth-dot"></span>
+          <span class="auth-dot active"></span>
+        </div>
+      </div>
+      <div class="auth-tabs">
+        <button class="auth-tab active" id="auth-tab-login"    onclick="switchAuthTab('login')">Sign in</button>
+        <button class="auth-tab"        id="auth-tab-register" onclick="switchAuthTab('register')">Register</button>
+      </div>
+
+      <!-- Login form -->
+      <div class="auth-form" id="auth-form-login">
+        <div class="auth-field">
+          <label class="auth-label">Username</label>
+          <input type="text" class="auth-input" id="login-username" placeholder="your username" autocomplete="username" spellcheck="false">
+        </div>
+        <div class="auth-field">
+          <label class="auth-label">Password</label>
+          <div class="auth-input-wrap">
+            <input type="password" class="auth-input" id="login-password" placeholder="••••••••" autocomplete="current-password">
+            <button type="button" class="auth-eye" onclick="togglePasswordVis('login-password', this)" tabindex="-1">
+              <i class="fa-regular fa-eye"></i>
+            </button>
+          </div>
+        </div>
+        <div class="auth-error" id="login-error"></div>
+        <button class="auth-submit" id="login-submit" onclick="doLogin()">
+          <i class="fa-solid fa-arrow-right-to-bracket"></i> Sign in
+        </button>
+      </div>
+
+      <!-- Register form -->
+      <div class="auth-form" id="auth-form-register" style="display:none">
+        <div class="auth-field">
+          <label class="auth-label">Username</label>
+          <input type="text" class="auth-input" id="reg-username" placeholder="pick a username" autocomplete="username" spellcheck="false" maxlength="20">
+          <span class="auth-hint">2–20 chars, letters/numbers/dash/underscore</span>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label">Password</label>
+          <div class="auth-input-wrap">
+            <input type="password" class="auth-input" id="reg-password" placeholder="••••••••" autocomplete="new-password">
+            <button type="button" class="auth-eye" onclick="togglePasswordVis('reg-password', this)" tabindex="-1">
+              <i class="fa-regular fa-eye"></i>
+            </button>
+          </div>
+        </div>
+        <div class="auth-field">
+          <label class="auth-label">Confirm password</label>
+          <div class="auth-input-wrap">
+            <input type="password" class="auth-input" id="reg-confirm" placeholder="••••••••" autocomplete="new-password">
+            <button type="button" class="auth-eye" onclick="togglePasswordVis('reg-confirm', this)" tabindex="-1">
+              <i class="fa-regular fa-eye"></i>
+            </button>
+          </div>
+        </div>
+        <div class="auth-error" id="reg-error"></div>
+        <button class="auth-submit" id="reg-submit" onclick="doRegister()">
+          <i class="fa-solid fa-user-plus"></i> Create account
+        </button>
+      </div>
+    </div>
+
   </div>
 </div>
 

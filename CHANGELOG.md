@@ -4,25 +4,21 @@ All notable changes to **stdin** are documented here.
 
 ---
 
-## v0.3.1 — 16 Mar 2026
-
-### Added
-- Warning on solution lock screen — notifies the user that revealing the solution disqualifies the problem from the leaderboard
-
-### Fixed
-- Mobile project header layout — title and buttons now stay on the same row instead of wrapping onto separate lines
-- Solve times no longer submitted to leaderboard if the solution was revealed for that problem
-
----
-
 ## v0.3.0 — 16 Mar 2026
 
 ### Added
 - **Leaderboard system** powered by Supabase — per-problem fastest solve times and global rankings
 - Global leaderboard panel with three tabs: Most Solved, Fastest Average, Recent Solves
 - Per-problem Leaderboard tab showing top 20 fastest times with rank, username, and time
-- Username prompt on first Run — picked once, stored locally, never asked again
-- Solve times submitted to Supabase automatically after each successful solve (best time kept)
+- **Auth system** — username + password register/sign in, passwords hashed with SHA-256 client-side
+- Two-step auth modal — pitch screen explaining benefits before the login/register form
+- Show password toggle on all password fields
+- Account badge in header — shows username, dropdown with Leaderboard and Sign out
+- Guest mode — "Continue as guest" skips auth, Sign in button appears in header for later
+- **Submit button** — appears after solving a problem, lets user submit their time to the leaderboard on demand
+- 60-second rate limit on leaderboard submissions per problem to prevent spam
+- Solution reveal warning — notifies user that revealing disqualifies the problem from the leaderboard
+- Solve times not submitted if solution was revealed
 - Streak tracking — daily solve streak shown on welcome screen
 - Progress by topic — bar chart of solved/total per topic on welcome screen
 - Random problem button — picks from unsolved problems first
@@ -30,14 +26,17 @@ All notable changes to **stdin** are documented here.
 - Execution time display in terminal bar after each run
 - Search now matches problem descriptions in addition to title and topic
 - Syntax highlighting in the Solution tab — matches the editor's pylab theme exactly
-- Boot loading screen with progress bar while Pyodide initialises
+- Boot loading screen with staggered fade-in animation and progress bar while Pyodide initialises
+- Improved favicon — `</>` icon rendered as SVG shapes, clean at all sizes
 
 ### Fixed
-- Username prompt now appears before run, not after solve popup
+- Auth modal used nested `<button>` inside `<button>` — replaced outer with `<div>` to fix browser extraction of inner buttons into header
+- Mobile project header layout — title and buttons now stay on the same row instead of wrapping
 - Leaderboard using wrong Supabase key format (`sb_publishable_` vs `eyJ` anon key)
-- Medal emojis replaced with FA trophy icons throughout leaderboard
 - `commit-sha` null reference error after removing badge from header
-- `copySolution` reading `pre.textContent` after switch to highlighted spans — now reads from `p.solution` directly
+- `copySolution` reading `pre.textContent` after switch to highlighted spans — now reads from `p.solution`
+- `submitSolveToLeaderboard` function declaration missing — body was orphaned outside function scope
+- Boot screen animations causing lag — replaced looping shimmer, cursor blink, and dots with lightweight staggered fade-ins
 
 ---
 
