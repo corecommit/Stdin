@@ -4,7 +4,32 @@ All notable changes to **stdin** are documented here.
 
 ---
 
-## [Unreleased]
+## v0.2.0 — 16 Mar 2026
+
+### Added
+- Boot loading screen with progress bar — shown while Pyodide initialises
+- Welcome screen meta row — GitHub link, Changelog button, and commit SHA badge
+- Changelog panel — fetches and renders `CHANGELOG.md` from the repo with full markdown support (headings, code blocks, lists, bold, dividers, links)
+- Commit SHA badge linking to GitHub commits
+- GitHub icon linking to the repo
+- Filter panel — replaces flat difficulty tabs with a dropdown containing difficulty chips and topic chips
+- Filter badge showing count of active filters
+- Skeleton loading for the project list while JS boots
+- Author field on projects — contributors can tag their username, shown in sidebar and project header
+- `example-project.js` — annotated template for adding new problems
+- Split project data into `projects/easy.js`, `medium.js`, `hard.js`, `expert.js`
+- Auto ID assignment — no manual `id:` needed when adding problems
+- `projects.js` loader — merges all difficulty files and assigns IDs automatically
+
+### Fixed
+- Auto-submit now works for all problem types — runs reference solution silently and compares output structure instead of relying on fragile heuristics
+- FizzBuzz and Multiplication Table auto-submit failing due to abbreviated `...` example outputs — fixed example outputs and added `...` wildcard support to `outputMatches`
+- `outputMatches` false-positives from loose `includes()` check
+- `verifyAgainstSolution` only triggered for labelled-output problems — now runs for all `input()` problems
+- Skeleton list not scrollable during Pyodide load
+- Filter panel functions missing from final `app.js` build
+- Double `];` syntax error in `expert.js` from incorrect block splitting
+- `commit-sha` element not found error after removing badge from header
 
 ---
 
@@ -19,24 +44,9 @@ All notable changes to **stdin** are documented here.
 - Solution reveal with explanation (locked until you attempt)
 - Progressive **hints** system — reveal one at a time
 - **Sidebar** with search, difficulty filter, and topic filter
-- Filter panel with pill-style chips for difficulty and topic
-- Skeleton loading for the project list
 - **Solved progress** saved to `localStorage`
 - Reset progress with confirmation modal
 - Keyboard shortcuts — `Ctrl+Enter` to run, `Alt+←/→` to navigate, `Ctrl+1/2/3` for tabs
 - Solved celebration overlay with confetti animation
-- Project **author** field — contributors can tag their username on problems
-- **Commit badge** in header showing latest SHA, linking to GitHub
-- **Changelog panel** fetching and rendering `CHANGELOG.md` from the repo
-- Split project data into `projects/easy.js`, `medium.js`, `hard.js`, `expert.js`
-- Auto ID assignment — no manual `id:` needed when adding problems
 - Light/dark mode via `prefers-color-scheme`
 - Mobile responsive layout with slide-in sidebar
-
-### Fixed
-- FizzBuzz and Multiplication Table auto-submit failing due to abbreviated example outputs
-- `outputMatches` false-positives from loose `includes()` check
-- `verifyAgainstSolution` only triggered for labelled-output problems — now runs for all `input()` problems
-- Skeleton list not scrollable during Pyodide load
-- Filter panel functions missing from final `app.js` build
-- Double `];` syntax error in `expert.js` from incorrect block splitting
