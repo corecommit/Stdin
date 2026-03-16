@@ -131,4 +131,4 @@ Any modern browser with WebAssembly support. Tested on Chrome 120+, Firefox 121+
 
 ## License
 
-MIT
+[MIT](LICENSE)
