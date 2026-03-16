@@ -4,6 +4,32 @@ All notable changes to **stdin** are documented here.
 
 ---
 
+## v0.3.0 — 16 Mar 2026
+
+### Added
+- **Leaderboard system** powered by Supabase — per-problem fastest solve times and global rankings
+- Global leaderboard panel with three tabs: Most Solved, Fastest Average, Recent Solves
+- Per-problem Leaderboard tab showing top 20 fastest times with rank, username, and time
+- Username prompt on first Run — picked once, stored locally, never asked again
+- Solve times submitted to Supabase automatically after each successful solve (best time kept)
+- Streak tracking — daily solve streak shown on welcome screen
+- Progress by topic — bar chart of solved/total per topic on welcome screen
+- Random problem button — picks from unsolved problems first
+- Code persistence — editor content saved to `localStorage` per problem, restored on revisit
+- Execution time display in terminal bar after each run
+- Search now matches problem descriptions in addition to title and topic
+- Syntax highlighting in the Solution tab — matches the editor's pylab theme exactly
+- Boot loading screen with progress bar while Pyodide initialises
+
+### Fixed
+- Username prompt now appears before run, not after solve popup
+- Leaderboard using wrong Supabase key format (`sb_publishable_` vs `eyJ` anon key)
+- Medal emojis replaced with FA trophy icons throughout leaderboard
+- `commit-sha` null reference error after removing badge from header
+- `copySolution` reading `pre.textContent` after switch to highlighted spans — now reads from `p.solution` directly
+
+---
+
 ## v0.2.0 — 16 Mar 2026
 
 ### Added

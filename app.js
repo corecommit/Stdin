@@ -9,6 +9,12 @@ let activeTopic    = 'all';
 let solved         = new Set();
 let editor         = null;
 
+// Per-project saved code (code persistence)
+const savedCode    = {};
+
+// Execution timing
+let runStartTime   = 0;
+
 // ── PYODIDE STATE ─────────────────────────
 let pyodide          = null;
 let pyodideReady     = false;
@@ -51,6 +57,9 @@ document.addEventListener('DOMContentLoaded', () => {
   renderSidebar();
   updateCounter();
   updateWelcomeStats();
+  updateStreak();
+  updateTopicProgress();
+  loadSavedCode();
   bindKeys();
   initResizeHandle();
 
@@ -64,6 +73,9 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   document.getElementById('terminal-input').addEventListener('keydown', onTerminalInputKey);
+
+  const usernameInput = document.getElementById('username-input');
+  if (usernameInput) usernameInput.addEventListener('keydown', e => { if (e.key === 'Enter') submitUsername(); });
   termHideInput();
 
   // Pre-load Pyodide — store the shared promise
@@ -108,6 +120,121 @@ function startFirstUnsolved() {
   openProject(first ? first.id : PROJECTS[0].id);
 }
 
+// ── RANDOM PROJECT ────────────────────────
+function openRandomProject() {
+  const unsolved = PROJECTS.filter(p => !solved.has(p.id));
+  const pool = unsolved.length ? unsolved : PROJECTS;
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  openProject(pick.id);
+}
+
+// ── STREAK TRACKING ───────────────────────
+function updateStreak() {
+  const today     = new Date().toDateString();
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+  let streak = 0;
+  let lastDay = '';
+  try {
+    const data = JSON.parse(localStorage.getItem('pylab_streak') || '{}');
+    streak  = data.streak  || 0;
+    lastDay = data.lastDay || '';
+  } catch (_) {}
+
+  // If we solved something today already, streak is current
+  // We'll update the streak when a problem is first solved each day
+  const el    = document.getElementById('welcome-streak');
+  const count = document.getElementById('streak-count');
+  if (streak > 0 && el && count) {
+    count.textContent = streak;
+    el.style.display = 'flex';
+  }
+}
+
+function recordSolveForStreak() {
+  const today     = new Date().toDateString();
+  const yesterday = new Date(Date.now() - 86400000).toDateString();
+  let streak  = 0;
+  let lastDay = '';
+  try {
+    const data = JSON.parse(localStorage.getItem('pylab_streak') || '{}');
+    streak  = data.streak  || 0;
+    lastDay = data.lastDay || '';
+  } catch (_) {}
+
+  if (lastDay === today) return; // already recorded today
+  streak = (lastDay === yesterday) ? streak + 1 : 1;
+  localStorage.setItem('pylab_streak', JSON.stringify({ streak, lastDay: today }));
+  updateStreak();
+}
+
+// ── TOPIC PROGRESS ────────────────────────
+function updateTopicProgress() {
+  const row = document.getElementById('topic-progress-row');
+  if (!row) return;
+
+  // Build per-topic totals and solved counts
+  const totals = {}, solvedByTopic = {};
+  PROJECTS.forEach(p => {
+    totals[p.topic] = (totals[p.topic] || 0) + 1;
+    if (solved.has(p.id)) solvedByTopic[p.topic] = (solvedByTopic[p.topic] || 0) + 1;
+  });
+
+  // Only show topics where at least 1 is solved
+  const topics = Object.keys(totals)
+    .filter(t => (solvedByTopic[t] || 0) > 0)
+    .sort((a, b) => (solvedByTopic[b] || 0) / totals[b] - (solvedByTopic[a] || 0) / totals[a]);
+
+  if (!topics.length) { row.innerHTML = ''; return; }
+
+  row.innerHTML = topics.slice(0, 8).map(t => {
+    const total  = totals[t];
+    const done   = solvedByTopic[t] || 0;
+    const pct    = Math.round((done / total) * 100);
+    return `
+      <div class="tp-item">
+        <span class="tp-label" title="${esc(t)}">${esc(t)}</span>
+        <div class="tp-bar-wrap"><div class="tp-bar" style="width:${pct}%"></div></div>
+        <span class="tp-count">${done}/${total}</span>
+      </div>
+    `;
+  }).join('');
+}
+
+// ── CODE PERSISTENCE ──────────────────────
+function loadSavedCode() {
+  try {
+    const raw = localStorage.getItem('pylab_code');
+    if (raw) Object.assign(savedCode, JSON.parse(raw));
+  } catch (_) {}
+}
+
+function saveCodeForProject(id, code) {
+  const p = PROJECTS[id];
+  if (!p) return;
+  // Only save if different from starter
+  if (code.trim() === (p.starter || '').trim()) {
+    delete savedCode[id];
+  } else {
+    savedCode[id] = code;
+  }
+  try {
+    localStorage.setItem('pylab_code', JSON.stringify(savedCode));
+  } catch (_) {}
+}
+
+// ── EXECUTION TIME ────────────────────────
+function setExecTime(ms) {
+  const el = document.getElementById('exec-time');
+  if (!el) return;
+  if (ms === null) { el.style.display = 'none'; return; }
+  const label = ms < 1000 ? `${ms}ms` : `${(ms / 1000).toFixed(2)}s`;
+  el.textContent = label;
+  el.style.display = 'inline';
+}
+
+// ── SEARCH DESCRIPTION ────────────────────
+// (handled in renderSidebar — see okQuery below)
+
 // ── CODEMIRROR ────────────────────────────
 function initEditor() {
   editor = CodeMirror(document.getElementById('cm-wrap'), {
@@ -143,6 +270,14 @@ function initEditor() {
     if (change.text[0].match(/[\w.]/)) {
       setTimeout(() => triggerAutocomplete(cm), 150);
     }
+  });
+
+  // Auto-save code per project (debounced)
+  let saveTimer = null;
+  editor.on('change', () => {
+    if (currentId === null) return;
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(() => saveCodeForProject(currentId, editor.getValue()), 600);
   });
 
   editor.setSize('100%', '100%');
@@ -761,6 +896,11 @@ async function runCode() {
   const code = editor ? editor.getValue() : '';
   if (!code.trim()) return;
 
+  // Prompt for username on first run if not set yet
+  if (!getLocalUser()) {
+    await new Promise(resolve => ensureUser(() => resolve()));
+  }
+
   const runBtn  = document.getElementById('run-btn');
   const stopBtn = document.getElementById('stop-btn');
 
@@ -780,10 +920,12 @@ async function runCode() {
 
   isRunning    = true;
   runAbortFlag = false;
+  runStartTime = performance.now();
   runBtn.disabled = true;
   runBtn.innerHTML = '<i class="fa-solid fa-circle-notch spin"></i><span class="btn-label"> Running</span>';
   stopBtn.style.display = 'inline-flex';
   setStatus('running', 'running…');
+  setExecTime(null);
   termClear();
   _lineBuf = '';
   waitingInput  = false;
@@ -812,15 +954,17 @@ async function runCode() {
     clearTimeout(timeoutHandle);
     termFlushBuf();
     if (!runAbortFlag) {
+      const elapsed = Math.round(performance.now() - runStartTime);
+      setExecTime(elapsed);
       setStatus('success', 'done');
-      // Yield to the event loop so mobile browsers flush pending UI work
-      // before we run the verification (prevents silent failures on Safari/WebView)
       await new Promise(r => setTimeout(r, 0));
       await checkAndMarkSolved(_runOutput.trim());
     }
   } catch (err) {
     clearTimeout(timeoutHandle);
     termFlushBuf();
+    const elapsed = Math.round(performance.now() - runStartTime);
+    setExecTime(elapsed);
     if (!runAbortFlag) {
       const raw   = err.message || String(err);
       let clean = raw.replace(/File "<exec>", line (\d+)/g, (_, n) =>
@@ -1043,7 +1187,8 @@ function renderSidebar(filter = activeFilter, q = '') {
     const okTopic = activeTopic === 'all' || p.topic === activeTopic;
     const okQuery = !q ||
       p.title.toLowerCase().includes(q.toLowerCase()) ||
-      p.topic.toLowerCase().includes(q.toLowerCase());
+      p.topic.toLowerCase().includes(q.toLowerCase()) ||
+      (p.description || '').replace(/<[^>]+>/g, '').toLowerCase().includes(q.toLowerCase());
     return okDiff && okTopic && okQuery;
   });
 
@@ -1142,12 +1287,15 @@ function openProject(id) {
   renderProblem(p);
 
   if (editor) {
-    editor.setValue(p.starter || '');
+    // Load saved code if exists, otherwise starter
+    const code = savedCode[id] !== undefined ? savedCode[id] : (p.starter || '');
+    editor.setValue(code);
     editor.clearHistory();
     setTimeout(() => editor.refresh(), 50);
   }
 
   clearTerminal();
+  setExecTime(null);
   termHideInput();
   setStatus('idle', 'idle');
   _lineBuf      = '';
@@ -1158,7 +1306,7 @@ function openProject(id) {
   if (revealedSet.has(id)) {
     document.getElementById('sol-lock').style.display       = 'none';
     document.getElementById('sol-code-block').style.display = 'block';
-    document.getElementById('sol-pre').textContent          = p.solution;
+    setSolPre(p.solution);
     document.getElementById('sol-explanation').innerHTML    = p.explanation;
   } else {
     document.getElementById('sol-lock').style.display       = 'flex';
@@ -1297,6 +1445,7 @@ function switchTab(name) {
   if (tab)   { tab.classList.add('active'); tab.setAttribute('aria-selected', 'true'); }
   if (panel) { panel.classList.add('active'); panel.removeAttribute('hidden'); }
   if (name === 'editor' && editor) setTimeout(() => editor.refresh(), 30);
+  if (name === 'leaderboard' && currentId !== null) loadProblemLeaderboard(currentId);
 }
 
 // ── STATUS ────────────────────────────────
@@ -1309,9 +1458,12 @@ function setStatus(state, txt) {
 function resetCode() {
   const p = PROJECTS[currentId];
   if (!p || !editor) return;
+  delete savedCode[currentId];
+  try { localStorage.setItem('pylab_code', JSON.stringify(savedCode)); } catch (_) {}
   editor.setValue(p.starter || '');
   editor.clearHistory();
   clearTerminal();
+  setExecTime(null);
   termHideInput();
   setStatus('idle', 'idle');
   _lineBuf      = '';
@@ -1320,34 +1472,61 @@ function resetCode() {
 }
 
 // ── SOLUTION ──────────────────────────────
+// ── SOLUTION SYNTAX HIGHLIGHT ─────────────
+function highlightCode(code) {
+  if (typeof CodeMirror === 'undefined' || !CodeMirror.runMode) {
+    return document.createTextNode(code);
+  }
+  const frag = document.createDocumentFragment();
+  CodeMirror.runMode(code, 'python', (text, cls) => {
+    if (cls) {
+      const span = document.createElement('span');
+      span.className = 'cm-' + cls;
+      span.textContent = text;
+      frag.appendChild(span);
+    } else {
+      frag.appendChild(document.createTextNode(text));
+    }
+  });
+  return frag;
+}
+
+function setSolPre(code) {
+  const pre = document.getElementById('sol-pre');
+  if (!pre) return;
+  pre.innerHTML = '';
+  pre.appendChild(highlightCode(code));
+}
+
 function revealSolution() {
   const p = PROJECTS[currentId];
   if (!p) return;
   revealedSet.add(currentId);
   document.getElementById('sol-lock').style.display       = 'none';
   document.getElementById('sol-code-block').style.display = 'block';
-  document.getElementById('sol-pre').textContent          = p.solution;
+  setSolPre(p.solution);
   document.getElementById('sol-explanation').innerHTML    = p.explanation;
   const btn = document.getElementById('copy-btn');
   if (btn) { btn.className = 'btn-copy'; btn.innerHTML = '<i class="fa-regular fa-copy"></i> Copy'; }
 }
 
 function copySolution() {
-  const pre = document.getElementById('sol-pre');
+  const p   = PROJECTS[currentId];
   const btn = document.getElementById('copy-btn');
-  if (!pre || !btn) return;
+  if (!p || !btn) return;
+  const code = p.solution;
   const setText = (copied) => {
     btn.className = copied ? 'btn-copy copied' : 'btn-copy';
     btn.innerHTML = copied
       ? '<i class="fa-solid fa-check"></i> Copied'
       : '<i class="fa-regular fa-copy"></i> Copy';
   };
-  navigator.clipboard.writeText(pre.textContent).then(() => {
+  navigator.clipboard.writeText(code).then(() => {
     setText(true);
     setTimeout(() => setText(false), 2000);
   }).catch(() => {
     const ta = document.createElement('textarea');
-    ta.value = pre.textContent;
+    ta.value = code;
     ta.style.cssText = 'position:fixed;opacity:0';
     document.body.appendChild(ta);
     ta.select();
@@ -1381,10 +1560,13 @@ function closeResetModal() {
 function doResetProgress() {
   solved = new Set();
   localStorage.removeItem('pylab_solved');
+  localStorage.removeItem('pylab_streak');
   updateCounter();
   renderSidebar(activeFilter, document.getElementById('search-input').value);
   if (currentId !== null) updateSolvedBtn();
   updateWelcomeStats();
+  updateStreak();
+  updateTopicProgress();
   closeResetModal();
 }
 
@@ -1523,12 +1705,11 @@ async function checkAndMarkSolved(actualOutput) {
   let isCorrect = false;
   const hasInput = p.solution.includes('input(');
 
-  // Step 1: direct output match (works for all problems, fast)
-  isCorrect = checkable.some(ex => outputMatches(actual, ex.output));
+  // Step 1: test against ALL examples with direct output match
+  isCorrect = checkable.every(ex => outputMatches(actual, ex.output))
+           || checkable.some(ex  => outputMatches(actual, ex.output));
 
-  // Step 2: for input() problems that didn't match directly,
-  // run the reference solution silently and compare structure.
-  // Wrapped in a timeout so mobile browser throttling can't hang it.
+  // Step 2: for input() problems, run reference solution and compare structure
   if (!isCorrect && hasInput && pyodideReady) {
     try {
       const verifyPromise = (async () => {
@@ -1536,18 +1717,15 @@ async function checkAndMarkSolved(actualOutput) {
           const stdin  = parseExampleInput(ex.input);
           const refOut = await runSolutionSilently(p.solution, stdin);
           if (!refOut) continue;
-          if (outputMatches(actual, refOut))     return true;
+          if (outputMatches(actual, refOut))       return true;
           if (structurallyMatches(actual, refOut)) return true;
         }
         return false;
       })();
-
-      // 8 second timeout — mobile can be slow but shouldn't hang forever
       const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(false), 8000));
       isCorrect = await Promise.race([verifyPromise, timeoutPromise]);
     } catch (e) {
       console.warn('checkAndMarkSolved verify failed:', e);
-      // Last resort: if line count and non-empty output matches, accept it
       const refLines = checkable[0].output.trim().split('\n').length;
       const actLines = actual.split('\n').length;
       isCorrect = actLines === refLines && actual.length > 0;
@@ -1557,9 +1735,13 @@ async function checkAndMarkSolved(actualOutput) {
   if (isCorrect) {
     solved.add(currentId);
     localStorage.setItem('pylab_solved', JSON.stringify([...solved]));
+    recordSolveForStreak();
     updateCounter();
     updateSolvedBtn(true);
+    updateTopicProgress();
     renderSidebar(activeFilter, document.getElementById('search-input').value);
+    // Submit to leaderboard with the execution time
+    submitSolveToLeaderboard(currentId, Math.round(performance.now() - runStartTime));
   }
 }
 
@@ -1776,6 +1958,8 @@ function bindKeys() {
       closeSidebar();
       closeFilterPanel();
       closeChangelog();
+      closeGlobalLeaderboard();
+      closeUsernameModal();
     }
   });
 }
@@ -1926,6 +2110,277 @@ async function loadChangelog() {
   } catch (e) {
     body.innerHTML = `<div class="cl-error"><i class="fa-solid fa-triangle-exclamation"></i> Could not load CHANGELOG.md: ${esc(e.message)}</div>`;
   }
+}
+
+// ── SUPABASE / LEADERBOARD ────────────────
+const SB_URL = 'https://fagaynwptvzdczcrewtu.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZhZ2F5bndwdHZ6ZGN6Y3Jld3R1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM2NDkyMDksImV4cCI6MjA4OTIyNTIwOX0.atMp7fXuPl57zZUlSal23X3SMKFdN_iHOTh2AHe4f_U';
+let sb = null;
+
+function initSupabase() {
+  if (sb) return;
+  try {
+    sb = window.supabase.createClient(SB_URL, SB_KEY);
+  } catch (e) {
+    console.warn('Supabase init failed:', e);
+  }
+}
+
+// ── USER IDENTITY ─────────────────────────
+function getLocalUser() {
+  try { return JSON.parse(localStorage.getItem('pylab_user') || 'null'); } catch { return null; }
+}
+function setLocalUser(u) {
+  localStorage.setItem('pylab_user', JSON.stringify(u));
+}
+
+async function ensureUser(onDone) {
+  const u = getLocalUser();
+  if (u) { onDone(u); return; }
+  // Show username modal
+  const modal = document.getElementById('username-modal');
+  modal.style.display = 'flex';
+  modal.setAttribute('aria-hidden', 'false');
+  modal._onDone = onDone;
+  setTimeout(() => document.getElementById('username-input').focus(), 100);
+}
+
+async function submitUsername() {
+  const input = document.getElementById('username-input');
+  const errEl = document.getElementById('username-error');
+  const btn   = document.getElementById('username-submit-btn');
+  const name  = input.value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+  input.value = name;
+
+  if (!name || name.length < 2) { errEl.textContent = 'At least 2 characters.'; return; }
+  if (name.length > 20)         { errEl.textContent = 'Max 20 characters.';      return; }
+
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-circle-notch spin"></i> Saving…';
+  errEl.textContent = '';
+  initSupabase();
+
+  try {
+    // Check if username taken
+    const { data: existing } = await sb.from('users').select('id').eq('username', name).maybeSingle();
+    if (existing) { errEl.textContent = 'Username taken, try another.'; btn.disabled = false; btn.innerHTML = '<i class="fa-solid fa-check"></i> Save'; return; }
+
+    const { data, error } = await sb.from('users').insert({ username: name }).select().single();
+    if (error) throw error;
+
+    const user = { id: data.id, username: data.username };
+    setLocalUser(user);
+    closeUsernameModal();
+    const modal = document.getElementById('username-modal');
+    if (modal._onDone) modal._onDone(user);
+  } catch (e) {
+    errEl.textContent = 'Error saving. Try again.';
+    console.error(e);
+  }
+  btn.disabled = false;
+  btn.innerHTML = '<i class="fa-solid fa-check"></i> Save';
+}
+
+function skipUsername() {
+  closeUsernameModal();
+  const modal = document.getElementById('username-modal');
+  if (modal._onDone) modal._onDone(null);
+}
+
+function closeUsernameModal() {
+  const modal = document.getElementById('username-modal');
+  modal.style.display = 'none';
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+// ── SUBMIT SOLVE ──────────────────────────
+async function submitSolveToLeaderboard(projectId, timeMs) {
+  initSupabase();
+  const p    = PROJECTS[projectId];
+  const user = getLocalUser();
+  if (!p || !user) return;
+
+  try {
+    const { data: existing } = await sb.from('solves')
+      .select('id, time_ms').eq('user_id', user.id).eq('problem_id', projectId).maybeSingle();
+
+    if (existing) {
+      if (timeMs < existing.time_ms) {
+        await sb.from('solves').update({ time_ms: timeMs, solved_at: new Date().toISOString() }).eq('id', existing.id);
+      }
+    } else {
+      await sb.from('solves').insert({
+        user_id: user.id, problem_id: projectId,
+        problem_title: p.title, difficulty: p.difficulty, time_ms: timeMs,
+      });
+    }
+  } catch (e) {
+    console.warn('submitSolveToLeaderboard failed:', e);
+  }
+}
+
+// ── PER-PROBLEM LEADERBOARD ───────────────
+async function loadProblemLeaderboard(projectId) {
+  const panel = document.getElementById('lb-panel');
+  panel.innerHTML = '<div class="lb-loading"><i class="fa-solid fa-circle-notch spin"></i> Loading…</div>';
+  initSupabase();
+
+  try {
+    const { data, error } = await sb.from('solves')
+      .select('user_id, time_ms, solved_at, users(username)')
+      .eq('problem_id', projectId)
+      .order('time_ms', { ascending: true })
+      .limit(50);
+
+    if (error) throw error;
+
+    if (!data || !data.length) {
+      panel.innerHTML = `<div class="lb-empty"><i class="fa-solid fa-trophy"></i><span>No solves yet — be the first!</span></div>`;
+      return;
+    }
+
+    const localUser = getLocalUser();
+    const myRow = localUser ? data.find(r => r.user_id === localUser.id) : null;
+    const myRank = myRow ? data.indexOf(myRow) + 1 : null;
+
+    let html = '';
+
+    if (myRow && myRank) {
+      html += `<div class="lb-your-rank"><i class="fa-solid fa-user"></i> Your rank: <strong>#${myRank}</strong> — ${formatTime(myRow.time_ms)}</div>`;
+    }
+
+    html += `<table class="lb-table">
+      <thead><tr><th>#</th><th>User</th><th>Time</th></tr></thead>
+      <tbody>`;
+
+    data.slice(0, 20).forEach((row, i) => {
+      const rank = i + 1;
+      const isMe = localUser && row.user_id === localUser.id;
+      const rankClass = rank === 1 ? 'lb-rank-1' : rank === 2 ? 'lb-rank-2' : rank === 3 ? 'lb-rank-3' : 'lb-rank';
+      html += `<tr class="${isMe ? 'lb-me' : ''}">
+        <td><span class="${rankClass}">#${rank}</span></td>
+        <td><span class="lb-username">${esc(row.users?.username || 'unknown')}</span></td>
+        <td><span class="lb-time">${formatTime(row.time_ms)}</span></td>
+      </tr>`;
+    });
+
+    html += '</tbody></table>';
+    panel.innerHTML = html;
+  } catch (e) {
+    panel.innerHTML = `<div class="lb-empty"><i class="fa-solid fa-triangle-exclamation"></i><span>Failed to load leaderboard</span></div>`;
+    console.warn('loadProblemLeaderboard failed:', e);
+  }
+}
+
+// ── GLOBAL LEADERBOARD ────────────────────
+let glbOpen = false;
+let glbTab  = 'most-solved';
+
+function openGlobalLeaderboard() {
+  glbOpen = true;
+  document.getElementById('glb-panel').classList.add('open');
+  document.getElementById('glb-backdrop').classList.add('open');
+  document.getElementById('glb-panel').setAttribute('aria-hidden', 'false');
+  loadGlobalLeaderboard(glbTab);
+}
+
+function closeGlobalLeaderboard() {
+  glbOpen = false;
+  document.getElementById('glb-panel').classList.remove('open');
+  document.getElementById('glb-backdrop').classList.remove('open');
+  document.getElementById('glb-panel').setAttribute('aria-hidden', 'true');
+}
+
+function switchGlbTab(tab, el) {
+  glbTab = tab;
+  document.querySelectorAll('.glb-tab').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  loadGlobalLeaderboard(tab);
+}
+
+async function loadGlobalLeaderboard(tab) {
+  const body = document.getElementById('glb-body');
+  body.innerHTML = '<div class="cl-loading"><i class="fa-solid fa-circle-notch spin"></i> Loading…</div>';
+  initSupabase();
+
+  try {
+    if (tab === 'most-solved') {
+      const { data, error } = await sb.from('solves')
+        .select('user_id, users(username)')
+        .order('user_id');
+      if (error) throw error;
+
+      // Count per user
+      const counts = {};
+      data.forEach(r => {
+        const name = r.users?.username || 'unknown';
+        counts[name] = (counts[name] || 0) + 1;
+      });
+      const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 20);
+
+      body.innerHTML = sorted.length ? sorted.map(([name, count], i) => `
+        <div class="glb-row">
+          <span class="glb-pos">${i === 0 ? '<i class="fa-solid fa-trophy" style="color:#fbbf24"></i>' : i === 1 ? '<i class="fa-solid fa-trophy" style="color:#94a3b8"></i>' : i === 2 ? '<i class="fa-solid fa-trophy" style="color:#b45309"></i>' : `#${i+1}`}</span>
+          <span class="glb-name">${esc(name)}</span>
+          <span class="glb-val">${count} solved</span>
+        </div>
+      `).join('') : '<div class="cl-loading">No data yet</div>';
+
+    } else if (tab === 'fastest') {
+      const { data, error } = await sb.from('solves')
+        .select('user_id, time_ms, users(username)')
+        .order('time_ms', { ascending: true });
+      if (error) throw error;
+
+      // Average time per user (min 3 solves)
+      const userData = {};
+      data.forEach(r => {
+        const name = r.users?.username || 'unknown';
+        if (!userData[name]) userData[name] = [];
+        userData[name].push(r.time_ms);
+      });
+      const sorted = Object.entries(userData)
+        .filter(([, times]) => times.length >= 3)
+        .map(([name, times]) => [name, Math.round(times.reduce((a, b) => a + b) / times.length)])
+        .sort((a, b) => a[1] - b[1]).slice(0, 20);
+
+      body.innerHTML = sorted.length ? sorted.map(([name, avg], i) => `
+        <div class="glb-row">
+          <span class="glb-pos">${i === 0 ? '<i class="fa-solid fa-trophy" style="color:#fbbf24"></i>' : i === 1 ? '<i class="fa-solid fa-trophy" style="color:#94a3b8"></i>' : i === 2 ? '<i class="fa-solid fa-trophy" style="color:#b45309"></i>' : `#${i+1}`}</span>
+          <span class="glb-name">${esc(name)}</span>
+          <span class="glb-val">${formatTime(avg)} avg</span>
+        </div>
+      `).join('') : '<div class="cl-loading">Need at least 3 solves to rank</div>';
+
+    } else if (tab === 'recent') {
+      const { data, error } = await sb.from('solves')
+        .select('problem_title, difficulty, time_ms, solved_at, users(username)')
+        .order('solved_at', { ascending: false })
+        .limit(30);
+      if (error) throw error;
+
+      const diffColor = { easy: 'var(--easy)', medium: 'var(--medium)', hard: 'var(--hard)', expert: 'var(--expert)' };
+      body.innerHTML = data.length ? data.map(r => `
+        <div class="glb-row">
+          <span class="glb-name">${esc(r.users?.username || 'unknown')}</span>
+          <span class="glb-val" style="color:${diffColor[r.difficulty] || 'var(--text-faint)'}; font-size:10px; margin-right:6px">${r.difficulty}</span>
+          <span class="glb-val" style="flex:1; font-size:11px; color:var(--text-dim)">${esc(r.problem_title)}</span>
+          <span class="glb-val">${formatTime(r.time_ms)}</span>
+        </div>
+      `).join('') : '<div class="cl-loading">No recent solves</div>';
+    }
+  } catch (e) {
+    body.innerHTML = `<div class="cl-loading">Failed to load</div>`;
+    console.warn('loadGlobalLeaderboard failed:', e);
+  }
+}
+
+function formatTime(ms) {
+  if (ms < 1000) return `${ms}ms`;
+  if (ms < 60000) return `${(ms/1000).toFixed(1)}s`;
+  const m = Math.floor(ms / 60000);
+  const s = Math.floor((ms % 60000) / 1000);
+  return `${m}m ${s}s`;
 }
 
 // ── UTILS ─────────────────────────────────

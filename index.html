@@ -122,13 +122,24 @@
       <div class="stats-row" id="welcome-stats">
         <!-- populated dynamically -->
       </div>
+      <div class="welcome-streak" id="welcome-streak" style="display:none">
+        <i class="fa-solid fa-fire"></i>
+        <span id="streak-count"></span>
+        <span class="streak-label">day streak</span>
+      </div>
       <div class="welcome-actions">
         <button class="welcome-btn" id="welcome-start-btn" onclick="startFirstUnsolved()">
           <i class="fa-solid fa-arrow-right"></i> Start coding
         </button>
-        <button class="welcome-btn welcome-btn-ghost" onclick="toggleSidebar()">
-          <i class="fa-solid fa-list"></i> Browse projects
+        <button class="welcome-btn welcome-btn-ghost" onclick="openRandomProject()">
+          <i class="fa-solid fa-shuffle"></i> Random
         </button>
+        <button class="welcome-btn welcome-btn-ghost" onclick="toggleSidebar()">
+          <i class="fa-solid fa-list"></i> Browse
+        </button>
+      </div>
+      <div class="topic-progress-row" id="topic-progress-row">
+        <!-- populated dynamically -->
       </div>
       <div class="welcome-meta">
         <a class="welcome-meta-item" href="https://github.com/corecommit/Stdin" target="_blank" rel="noopener" title="View on GitHub">
@@ -136,6 +147,9 @@
         </a>
         <button class="welcome-meta-item" onclick="toggleChangelog()">
           <i class="fa-solid fa-clock-rotate-left"></i> Changelog
+        </button>
+        <button class="welcome-meta-item" onclick="openGlobalLeaderboard()">
+          <i class="fa-solid fa-trophy"></i> Leaderboard
         </button>
         <span class="welcome-meta-item welcome-meta-sha">
           <i class="fa-solid fa-code-branch"></i>
@@ -171,9 +185,10 @@
       </div>
 
       <div class="tab-bar" role="tablist" aria-label="Project sections">
-        <div class="tab active" role="tab" tabindex="0" aria-selected="true"  aria-controls="panel-problem"  data-tab="problem"  onclick="switchTab('problem')"  onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('problem')"><i class="fa-regular fa-file-lines" aria-hidden="true"></i> <span class="tab-label">Problem</span></div>
-        <div class="tab"        role="tab" tabindex="0" aria-selected="false" aria-controls="panel-editor"   data-tab="editor"   onclick="switchTab('editor')"   onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('editor')"><i class="fa-solid fa-code" aria-hidden="true"></i> <span class="tab-label">Editor</span></div>
-        <div class="tab"        role="tab" tabindex="0" aria-selected="false" aria-controls="panel-solution" data-tab="solution" onclick="switchTab('solution')" onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('solution')"><i class="fa-regular fa-lightbulb" aria-hidden="true"></i> <span class="tab-label">Solution</span></div>
+        <div class="tab active" role="tab" tabindex="0" aria-selected="true"  aria-controls="panel-problem"     data-tab="problem"     onclick="switchTab('problem')"     onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('problem')"><i class="fa-regular fa-file-lines" aria-hidden="true"></i> <span class="tab-label">Problem</span></div>
+        <div class="tab"        role="tab" tabindex="0" aria-selected="false" aria-controls="panel-editor"      data-tab="editor"      onclick="switchTab('editor')"      onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('editor')"><i class="fa-solid fa-code" aria-hidden="true"></i> <span class="tab-label">Editor</span></div>
+        <div class="tab"        role="tab" tabindex="0" aria-selected="false" aria-controls="panel-solution"   data-tab="solution"   onclick="switchTab('solution')"   onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('solution')"><i class="fa-regular fa-lightbulb" aria-hidden="true"></i> <span class="tab-label">Solution</span></div>
+        <div class="tab"        role="tab" tabindex="0" aria-selected="false" aria-controls="panel-leaderboard" data-tab="leaderboard" onclick="switchTab('leaderboard')" onkeydown="if(event.key==='Enter'||event.key===' ')switchTab('leaderboard')"><i class="fa-solid fa-trophy" aria-hidden="true"></i> <span class="tab-label">Leaderboard</span></div>
       </div>
 
       <div class="content-area">
@@ -219,6 +234,7 @@
                   <button class="term-clear-btn" onclick="event.stopPropagation(); clearTerminal()" title="Clear terminal">
                     <i class="fa-solid fa-trash-can"></i>
                   </button>
+                  <span class="exec-time" id="exec-time" style="display:none"></span>
                   <div class="status-row">
                     <span class="status-dot idle" id="status-dot"></span>
                     <span id="status-text">idle</span>
@@ -265,9 +281,50 @@
           </div>
         </div>
 
+        <!-- Leaderboard -->
+        <div class="tab-panel" id="panel-leaderboard" role="tabpanel" aria-labelledby="tab-leaderboard" hidden>
+          <div class="lb-panel" id="lb-panel">
+            <div class="lb-loading"><i class="fa-solid fa-circle-notch spin"></i> Loading…</div>
+          </div>
+        </div>
+
       </div>
     </div>
   </main>
+</div>
+
+<!-- Username modal -->
+<div class="modal-backdrop" id="username-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="username-modal-title" aria-hidden="true">
+  <div class="modal">
+    <div class="modal-icon"><i class="fa-solid fa-user"></i></div>
+    <div class="modal-title" id="username-modal-title">Choose a username</div>
+    <div class="modal-body">Pick a username to appear on the leaderboard. You can't change this later.</div>
+    <input type="text" id="username-input" class="username-input" placeholder="e.g. corecommit" maxlength="20" autocomplete="off" spellcheck="false">
+    <div class="username-error" id="username-error"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="skipUsername()"><i class="fa-solid fa-xmark"></i> Skip</button>
+      <button class="btn btn-run" id="username-submit-btn" onclick="submitUsername()"><i class="fa-solid fa-check"></i> Save</button>
+    </div>
+  </div>
+</div>
+
+<!-- Global leaderboard panel -->
+<div class="cl-backdrop" id="glb-backdrop" onclick="closeGlobalLeaderboard()"></div>
+<div class="cl-panel" id="glb-panel" aria-hidden="true" role="dialog" aria-label="Global Leaderboard">
+  <div class="cl-header">
+    <div class="cl-title"><i class="fa-solid fa-trophy"></i> Leaderboard</div>
+    <div class="cl-header-right">
+      <button class="cl-close" onclick="closeGlobalLeaderboard()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+  </div>
+  <div class="glb-tabs">
+    <button class="glb-tab active" data-glb="most-solved" onclick="switchGlbTab('most-solved', this)">Most Solved</button>
+    <button class="glb-tab" data-glb="fastest"     onclick="switchGlbTab('fastest', this)">Fastest Avg</button>
+    <button class="glb-tab" data-glb="recent"      onclick="switchGlbTab('recent', this)">Recent</button>
+  </div>
+  <div class="cl-body" id="glb-body">
+    <div class="cl-loading"><i class="fa-solid fa-circle-notch spin"></i> Loading…</div>
+  </div>
 </div>
 
 <!-- Confirm reset modal -->
@@ -298,6 +355,7 @@
   </div>
 </div>
 
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <!-- Pyodide -->
 <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
 <!-- CodeMirror -->
@@ -306,12 +364,13 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/hint/show-hint.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/matchbrackets.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/runmode/runmode.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
 <!-- App -->
-<script src="Projects/easy.js"></script>
-<script src="Projects/medium.js"></script>
-<script src="Projects/hard.js"></script>
-<script src="Projects/expert.js"></script>
+<script src="projects/easy.js"></script>
+<script src="projects/medium.js"></script>
+<script src="projects/hard.js"></script>
+<script src="projects/expert.js"></script>
 <script src="projects.js"></script>
 <script src="app.js"></script>
 </body>
