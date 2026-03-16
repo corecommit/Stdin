@@ -25,6 +25,16 @@
   <div class="header-right">
     <span id="solved-count" class="hbadge"><i class="fa-solid fa-circle-check"></i> 0 / 0 solved</span>
     <span class="hbadge"><i class="fa-brands fa-python"></i> 3.12</span>
+    <a class="hbadge hbadge-commit" id="commit-badge" href="https://github.com/corecommit/Stdin/commits" target="_blank" rel="noopener" title="View commits on GitHub">
+      <i class="fa-solid fa-code-branch"></i>
+      <span id="commit-sha">…</span>
+    </a>
+    <button class="hbadge hbadge-btn" id="changelog-btn" onclick="toggleChangelog()" title="Changelog">
+      <i class="fa-solid fa-clock-rotate-left"></i> Changelog
+    </button>
+    <a class="hbadge hbadge-gh" href="https://github.com/corecommit/Stdin" target="_blank" rel="noopener" title="View on GitHub">
+      <i class="fa-brands fa-github"></i>
+    </a>
     <span class="hbadge pyodide-status" id="pyodide-badge" title="Python runtime status">
       <i class="fa-solid fa-circle-notch spin" id="pyodide-badge-icon"></i>
       <span id="pyodide-badge-text">loading…</span>
@@ -51,15 +61,35 @@
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
-      <div class="filter-row">
-        <button class="ftab f-all"   onclick="setFilter('all',this)"    title="All projects">All</button>
-        <button class="ftab"         onclick="setFilter('easy',this)"   title="Easy projects">Easy</button>
-        <button class="ftab"         onclick="setFilter('medium',this)" title="Medium projects">Med</button>
-        <button class="ftab"         onclick="setFilter('hard',this)"   title="Hard projects">Hard</button>
-        <button class="ftab"         onclick="setFilter('expert',this)" title="Expert projects">Pro</button>
+      <div class="filter-bar">
+        <button class="filter-btn" id="filter-btn" onclick="toggleFilterPanel()" aria-haspopup="true" aria-expanded="false" title="Filter projects">
+          <i class="fa-solid fa-sliders"></i>
+          <span>Filter</span>
+          <span class="filter-badge" id="filter-badge" style="display:none"></span>
+        </button>
+        <button class="filter-clear-btn" id="filter-clear-btn" onclick="clearAllFilters()" title="Clear all filters" style="display:none">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
       </div>
-      <div class="topic-filter-row" id="topic-filter-row">
-        <!-- populated by JS -->
+
+      <!-- Filter dropdown panel -->
+      <div class="filter-panel" id="filter-panel" aria-hidden="true">
+        <div class="filter-section">
+          <div class="filter-section-label">Difficulty</div>
+          <div class="filter-chips" id="diff-chips">
+            <button class="fchip fchip-all active" data-diff="all"    onclick="setFilter('all',this)">All</button>
+            <button class="fchip fchip-easy"        data-diff="easy"   onclick="setFilter('easy',this)">Easy</button>
+            <button class="fchip fchip-medium"      data-diff="medium" onclick="setFilter('medium',this)">Medium</button>
+            <button class="fchip fchip-hard"        data-diff="hard"   onclick="setFilter('hard',this)">Hard</button>
+            <button class="fchip fchip-expert"      data-diff="expert" onclick="setFilter('expert',this)">Expert</button>
+          </div>
+        </div>
+        <div class="filter-section">
+          <div class="filter-section-label">Topic</div>
+          <div class="filter-chips" id="topic-filter-row">
+            <!-- populated by JS -->
+          </div>
+        </div>
       </div>
     </div>
     <div class="project-list" id="proj-list"></div>
@@ -100,6 +130,7 @@
             <span id="pv-diff" class="diff-pill"></span>
             <span id="pv-topic" class="topic-pill"></span>
             <span id="pv-num" class="pv-num-pill"></span>
+            <span id="pv-author" class="pv-author-pill" style="display:none"></span>
           </div>
         </div>
         <div class="pv-actions">
@@ -228,6 +259,21 @@
   </div>
 </div>
 
+<!-- Changelog panel -->
+<div class="cl-backdrop" id="cl-backdrop" onclick="closeChangelog()"></div>
+<div class="cl-panel" id="cl-panel" aria-hidden="true" role="dialog" aria-label="Changelog">
+  <div class="cl-header">
+    <div class="cl-title"><i class="fa-solid fa-clock-rotate-left"></i> Changelog</div>
+    <div class="cl-header-right">
+      <a class="cl-gh-link" href="https://github.com/corecommit/Stdin/commits" target="_blank" rel="noopener" title="View on GitHub"><i class="fa-brands fa-github"></i></a>
+      <button class="cl-close" onclick="closeChangelog()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+  </div>
+  <div class="cl-body" id="cl-body">
+    <div class="cl-loading"><i class="fa-solid fa-circle-notch spin"></i> Loading…</div>
+  </div>
+</div>
+
 <!-- Pyodide -->
 <script src="https://cdn.jsdelivr.net/pyodide/v0.25.1/full/pyodide.js"></script>
 <!-- CodeMirror -->
@@ -238,6 +284,10 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/edit/closebrackets.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/addon/selection/active-line.min.js"></script>
 <!-- App -->
+<script src="projects/easy.js"></script>
+<script src="projects/medium.js"></script>
+<script src="projects/hard.js"></script>
+<script src="projects/expert.js"></script>
 <script src="projects.js"></script>
 <script src="app.js"></script>
 </body>
