@@ -1741,7 +1741,10 @@ async function checkAndMarkSolved(actualOutput) {
     updateTopicProgress();
     renderSidebar(activeFilter, document.getElementById('search-input').value);
     // Submit to leaderboard with the execution time
-    submitSolveToLeaderboard(currentId, Math.round(performance.now() - runStartTime));
+    // Only submit to leaderboard if solution was never revealed
+    if (!revealedSet.has(currentId)) {
+      submitSolveToLeaderboard(currentId, Math.round(performance.now() - runStartTime));
+    }
   }
 }
 

@@ -4,6 +4,17 @@ All notable changes to **stdin** are documented here.
 
 ---
 
+## v0.3.1 — 16 Mar 2026
+
+### Added
+- Warning on solution lock screen — notifies the user that revealing the solution disqualifies the problem from the leaderboard
+
+### Fixed
+- Mobile project header layout — title and buttons now stay on the same row instead of wrapping onto separate lines
+- Solve times no longer submitted to leaderboard if the solution was revealed for that problem
+
+---
+
 ## v0.3.0 — 16 Mar 2026
 
 ### Added

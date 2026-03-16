@@ -1133,6 +1133,14 @@ header {
   color: var(--text-faint); font-size: 17px;
 }
 .lock-text { font-size: 12px; color: var(--text-faint); max-width: 280px; line-height: 1.75; }
+.sol-lock-warning {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 11px; color: var(--medium);
+  background: rgba(250,204,21,0.06); border: 1px solid rgba(250,204,21,0.2);
+  border-radius: var(--r); padding: 8px 12px; max-width: 300px;
+  line-height: 1.5; text-align: left;
+}
+.sol-lock-warning i { font-size: 11px; flex-shrink: 0; }
 .sol-code-block { display: none; }
 
 .section-title-row {
@@ -1349,9 +1357,9 @@ header {
   .tab-label   { display: none; }
 
   /* Project header wraps on small screens */
-  .pv-header   { flex-wrap: wrap; gap: 6px; padding: 8px 10px; min-height: auto; }
-  .pv-left     { width: 100%; }
-  .pv-actions  { width: 100%; justify-content: flex-end; }
+  .pv-header   { flex-wrap: nowrap; gap: 6px; padding: 8px 10px; min-height: auto; align-items: center; }
+  .pv-left     { flex: 1; min-width: 0; }
+  .pv-actions  { flex-shrink: 0; justify-content: flex-end; }
   .pv-title    { font-size: 13px; }
 
   /* Make tab targets larger on mobile */
