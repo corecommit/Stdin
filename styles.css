@@ -81,6 +81,45 @@ pre, textarea, code { font-family: var(--font-mono); }
 button:focus:not(:focus-visible),
 input:focus:not(:focus-visible) { outline: none; }
 
+/* ── BOOT SCREEN ─────────────────────────── */
+.boot-screen {
+  position: fixed; inset: 0; z-index: 9000;
+  background: var(--bg);
+  display: flex; align-items: center; justify-content: center;
+  transition: opacity 400ms ease;
+}
+.boot-screen.hidden {
+  opacity: 0; pointer-events: none;
+}
+.boot-inner {
+  display: flex; flex-direction: column;
+  align-items: center; gap: 14px;
+  width: 220px;
+}
+.boot-logo {
+  width: 52px; height: 52px;
+  border: 1px solid var(--border2); border-radius: var(--r2);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--text-dim); font-size: 22px;
+}
+.boot-name {
+  font-family: var(--font-mono); font-size: 22px;
+  font-weight: 600; color: var(--text); letter-spacing: -0.04em;
+}
+.boot-bar-wrap {
+  width: 100%; height: 2px;
+  background: var(--surface3); border-radius: 2px; overflow: hidden;
+}
+.boot-bar {
+  height: 100%; width: 0; border-radius: 2px;
+  background: var(--accent);
+  transition: width 300ms ease;
+}
+.boot-status {
+  font-size: 11px; color: var(--text-faint);
+  font-family: var(--font-mono); letter-spacing: 0.02em;
+}
+
 /* ── PROGRESS BAR ────────────────────────── */
 #progress-bar {
   position: fixed; top: 0; left: 0;
@@ -134,11 +173,7 @@ header {
   text-decoration: none; transition: all var(--t);
 }
 .hbadge-commit:hover { color: var(--text-dim); border-color: var(--border2); }
-.hbadge-gh {
-  text-decoration: none; transition: all var(--t);
-  font-size: 14px;
-}
-.hbadge-gh:hover { color: var(--text); border-color: var(--border2); }
+#commit-badge, #changelog-btn, .hbadge-gh { display: none; }
 .hbadge-btn {
   background: transparent; cursor: pointer; transition: all var(--t);
 }
@@ -589,6 +624,24 @@ header {
 .welcome-btn i { font-size: 10px; }
 .welcome-btn-ghost { background: transparent; border-color: var(--border); color: var(--text-faint); }
 .welcome-btn-ghost:hover { background: var(--surface2); color: var(--text-dim); border-color: var(--border2); }
+
+.welcome-meta {
+  display: flex; align-items: center; gap: 6px;
+  flex-wrap: wrap; justify-content: center;
+}
+.welcome-meta-item {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px;
+  background: transparent; border: 1px solid var(--border);
+  border-radius: var(--r); color: var(--text-faint);
+  font-size: 12px; font-weight: 500; font-family: var(--font-sans);
+  text-decoration: none; cursor: pointer;
+  transition: all var(--t); min-height: 34px;
+}
+.welcome-meta-item:hover { color: var(--text-dim); border-color: var(--border2); background: var(--surface2); }
+.welcome-meta-item i { font-size: 12px; }
+.welcome-meta-sha a { color: inherit; text-decoration: none; font-family: var(--font-mono); }
+.welcome-meta-sha a:hover { color: var(--accent); }
 
 /* ── PROJECT VIEW ────────────────────────── */
 .project-view {
@@ -1185,7 +1238,7 @@ header {
   /* Run/Stop buttons — bigger on mobile */
   .btn-run, .btn-stop { min-width: 48px; padding: 8px 12px; }
 
-  /* Header badges: keep only solved count */
+  /* Header badges: keep only solved count on mobile */
   .hbadge:not(#solved-count) { display: none; }
 
   /* Terminal font slightly bigger for readability */

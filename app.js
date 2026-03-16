@@ -74,8 +74,15 @@ document.addEventListener('DOMContentLoaded', () => {
     headers: { 'Accept': 'application/vnd.github+json' }
   })
     .then(r => r.ok ? r.json() : Promise.reject())
-    .then(c => { document.getElementById('commit-sha').textContent = c.sha.slice(0, 7); })
-    .catch(() => { document.getElementById('commit-sha').textContent = 'unknown'; });
+    .then(c => {
+      const sha = c.sha.slice(0, 7);
+      const w = document.getElementById('welcome-commit-sha');
+      if (w) w.textContent = sha;
+    })
+    .catch(() => {
+      const w = document.getElementById('welcome-commit-sha');
+      if (w) w.textContent = 'unknown';
+    });
 });
 
 // ── WELCOME STATS ─────────────────────────
@@ -556,16 +563,32 @@ function triggerAutocomplete(cm) {
   cm.showHint({ hint: () => ({ list, from: CodeMirror.Pos(cur.line, token.start), to: CodeMirror.Pos(cur.line, token.end) }), completeSingle: false });
 }
 
+// ── BOOT SCREEN ───────────────────────────
+function bootProgress(pct, msg) {
+  const bar    = document.getElementById('boot-bar');
+  const status = document.getElementById('boot-status');
+  if (bar)    bar.style.width = pct + '%';
+  if (status) status.textContent = msg;
+}
+
+function bootDismiss() {
+  const screen = document.getElementById('boot-screen');
+  if (!screen) return;
+  screen.classList.add('hidden');
+  setTimeout(() => screen.remove(), 420);
+}
+
 // ── PYODIDE INIT ──────────────────────────
 async function initPyodide() {
   if (pyodideReady) return;
-  // If already loading, return the existing promise
   if (pyodidePromise && !pyodideReady) return pyodidePromise;
 
   setPyodideBadge('loading');
+  bootProgress(10, 'Loading Python runtime…');
 
   try {
     pyodide = await loadPyodide();
+    bootProgress(70, 'Setting up environment…');
 
     pyodide.globals.set('_js_write',     (text) => termWrite(text, false));
     pyodide.globals.set('_js_write_err', (text) => termWrite(text, true));
@@ -602,14 +625,17 @@ async def _async_input(prompt=''):
 
 builtins.input = _async_input
 `);
-
+    bootProgress(100, 'Ready');
     pyodideReady = true;
     setPyodideBadge('ready');
     setStatus('idle', 'ready');
+    setTimeout(bootDismiss, 300);
   } catch (err) {
     console.error('Pyodide load failed:', err);
+    bootProgress(100, 'Failed to load Python runtime');
     setPyodideBadge('error');
     setStatus('error', 'load failed');
+    setTimeout(bootDismiss, 1800);
   }
 }
 

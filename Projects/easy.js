@@ -1,7 +1,6 @@
 const PROJECTS_EASY = [
   {
     title: 'Hello, World!', difficulty: 'easy', topic: 'Basics',
-    author: 'corecommit',
     description: 'Write your very first Python program. Print the text <code>Hello, World!</code> to the console. This is the classic starting point for every developer.',
     examples: [
       { output: 'Hello, World!', explanation: 'print() sends text to the screen. The quotes mark it as a string — text data, not code.' }

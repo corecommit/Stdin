@@ -13,6 +13,18 @@
 </head>
 <body>
 
+<!-- Loading screen — shown until Pyodide is ready -->
+<div class="boot-screen" id="boot-screen">
+  <div class="boot-inner">
+    <div class="boot-logo"><i class="fa-solid fa-terminal"></i></div>
+    <div class="boot-name">stdin</div>
+    <div class="boot-bar-wrap">
+      <div class="boot-bar" id="boot-bar"></div>
+    </div>
+    <div class="boot-status" id="boot-status">Loading Python runtime…</div>
+  </div>
+</div>
+
 <div id="progress-bar"></div>
 
 <header>
@@ -30,7 +42,7 @@
       <span id="commit-sha">…</span>
     </a>
     <button class="hbadge hbadge-btn" id="changelog-btn" onclick="toggleChangelog()" title="Changelog">
-      <i class="fa-solid fa-clock-rotate-left"></i> Changelog
+      <i class="fa-solid fa-clock-rotate-left"></i><span class="cl-btn-label"> Changelog</span>
     </button>
     <a class="hbadge hbadge-gh" href="https://github.com/corecommit/Stdin" target="_blank" rel="noopener" title="View on GitHub">
       <i class="fa-brands fa-github"></i>
@@ -117,6 +129,18 @@
         <button class="welcome-btn welcome-btn-ghost" onclick="toggleSidebar()">
           <i class="fa-solid fa-list"></i> Browse projects
         </button>
+      </div>
+      <div class="welcome-meta">
+        <a class="welcome-meta-item" href="https://github.com/corecommit/Stdin" target="_blank" rel="noopener" title="View on GitHub">
+          <i class="fa-brands fa-github"></i> GitHub
+        </a>
+        <button class="welcome-meta-item" onclick="toggleChangelog()">
+          <i class="fa-solid fa-clock-rotate-left"></i> Changelog
+        </button>
+        <span class="welcome-meta-item welcome-meta-sha">
+          <i class="fa-solid fa-code-branch"></i>
+          <a id="welcome-commit-sha" href="https://github.com/corecommit/Stdin/commits" target="_blank" rel="noopener">…</a>
+        </span>
       </div>
     </div>
 
