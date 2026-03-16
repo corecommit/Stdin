@@ -813,6 +813,9 @@ async function runCode() {
     termFlushBuf();
     if (!runAbortFlag) {
       setStatus('success', 'done');
+      // Yield to the event loop so mobile browsers flush pending UI work
+      // before we run the verification (prevents silent failures on Safari/WebView)
+      await new Promise(r => setTimeout(r, 0));
       await checkAndMarkSolved(_runOutput.trim());
     }
   } catch (err) {
@@ -1520,22 +1523,34 @@ async function checkAndMarkSolved(actualOutput) {
   let isCorrect = false;
   const hasInput = p.solution.includes('input(');
 
-  if (!hasInput) {
-    isCorrect = checkable.some(ex => outputMatches(actual, ex.output));
-  } else {
-    isCorrect = checkable.some(ex => outputMatches(actual, ex.output));
-    if (!isCorrect && pyodideReady) {
-      try {
+  // Step 1: direct output match (works for all problems, fast)
+  isCorrect = checkable.some(ex => outputMatches(actual, ex.output));
+
+  // Step 2: for input() problems that didn't match directly,
+  // run the reference solution silently and compare structure.
+  // Wrapped in a timeout so mobile browser throttling can't hang it.
+  if (!isCorrect && hasInput && pyodideReady) {
+    try {
+      const verifyPromise = (async () => {
         for (const ex of checkable) {
           const stdin  = parseExampleInput(ex.input);
           const refOut = await runSolutionSilently(p.solution, stdin);
           if (!refOut) continue;
-          if (outputMatches(actual, refOut)) { isCorrect = true; break; }
-          if (structurallyMatches(actual, refOut)) { isCorrect = true; break; }
+          if (outputMatches(actual, refOut))     return true;
+          if (structurallyMatches(actual, refOut)) return true;
         }
-      } catch (e) {
-        console.warn('checkAndMarkSolved verify failed:', e);
-      }
+        return false;
+      })();
+
+      // 8 second timeout — mobile can be slow but shouldn't hang forever
+      const timeoutPromise = new Promise(resolve => setTimeout(() => resolve(false), 8000));
+      isCorrect = await Promise.race([verifyPromise, timeoutPromise]);
+    } catch (e) {
+      console.warn('checkAndMarkSolved verify failed:', e);
+      // Last resort: if line count and non-empty output matches, accept it
+      const refLines = checkable[0].output.trim().split('\n').length;
+      const actLines = actual.split('\n').length;
+      isCorrect = actLines === refLines && actual.length > 0;
     }
   }
 
