@@ -1935,7 +1935,7 @@ function runSolvedParticles() {
 
 function updateCounter() {
   document.getElementById('solved-count').innerHTML =
-    `<i class="fa-solid fa-circle-check" aria-hidden="true"></i> ${solved.size} / ${PROJECTS.length} solved`;
+    `<i class="fa-solid fa-circle-check" aria-hidden="true"></i><span class="solved-nums"> ${solved.size} / ${PROJECTS.length}</span><span class="solved-text"> solved</span>`;
 }
 
 // ── PROGRESS BAR ──────────────────────────

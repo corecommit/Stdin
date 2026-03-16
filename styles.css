@@ -669,14 +669,14 @@ header {
 
 /* Topic progress */
 .topic-progress-row {
-  width: 100%; max-width: 380px;
+  width: min(380px, 85%); align-self: center;
   display: flex; flex-direction: column; gap: 5px;
 }
 .tp-item {
   display: flex; align-items: center; gap: 8px;
 }
 .tp-label {
-  font-size: 10px; color: var(--text-faint); width: 110px;
+  font-size: 10px; color: var(--text-faint); width: 80px;
   flex-shrink: 0; text-align: right;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
@@ -784,7 +784,7 @@ header {
 .btn-stop:hover { background: rgba(248,113,113,0.15); border-color: var(--hard); }
 .btn-submit {
   background: rgba(74,222,128,0.08); color: var(--easy);
-  border: 1px solid rgba(74,222,128,0.3); min-width: 80px; justify-content: center;
+  border: 1px solid rgba(74,222,128,0.3); min-width: 72px; justify-content: center;
 }
 .btn-submit:hover { background: rgba(74,222,128,0.15); border-color: var(--easy); }
 .btn-submit:disabled { opacity: 0.4; cursor: not-allowed; }
@@ -1525,11 +1525,21 @@ header {
   /* Run/Stop buttons — bigger on mobile */
   .btn-run, .btn-stop { min-width: 48px; padding: 8px 12px; }
 
-  /* Header badges: keep only solved count on mobile */
-  .hbadge:not(#solved-count) { display: none; }
+  /* Header badges: keep only solved count and auth badge on mobile */
+  .hbadge:not(#solved-count):not(.auth-user-badge):not(#auth-signin-btn) { display: none; }
+  /* Auth badge — icon only on mobile */
+  #auth-username-display { display: none; }
+  .auth-user-badge .fa-chevron-down { display: none; }
 
   /* Terminal font slightly bigger for readability */
   .terminal-body { font-size: 13px; }
+}
+
+/* ── 360px and below ─────────────────────── */
+@media (max-width: 360px) {
+  /* Solved count — hide label, keep numbers */
+  #solved-count .solved-text { display: none; }
+  .header-right { gap: 4px; }
 }
 
 /* ── 480px and below ─────────────────────── */
