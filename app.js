@@ -46,6 +46,7 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   buildTopicFilter();
+  renderSkeletons();
   initEditor();
   renderSidebar();
   updateCounter();
@@ -53,11 +54,28 @@ document.addEventListener('DOMContentLoaded', () => {
   bindKeys();
   initResizeHandle();
 
+  document.addEventListener('click', e => {
+    const panel = document.getElementById('filter-panel');
+    const btn   = document.getElementById('filter-btn');
+    if (panel && panel.classList.contains('open') &&
+        !panel.contains(e.target) && btn && !btn.contains(e.target)) {
+      closeFilterPanel();
+    }
+  });
+
   document.getElementById('terminal-input').addEventListener('keydown', onTerminalInputKey);
   termHideInput();
 
   // Pre-load Pyodide — store the shared promise
   pyodidePromise = initPyodide();
+
+  // Fetch latest commit SHA for version badge (non-blocking)
+  fetch('https://api.github.com/repos/corecommit/Stdin/commits/HEAD', {
+    headers: { 'Accept': 'application/vnd.github+json' }
+  })
+    .then(r => r.ok ? r.json() : Promise.reject())
+    .then(c => { document.getElementById('commit-sha').textContent = c.sha.slice(0, 7); })
+    .catch(() => { document.getElementById('commit-sha').textContent = 'unknown'; });
 });
 
 // ── WELCOME STATS ─────────────────────────
@@ -180,30 +198,61 @@ function initResizeHandle() {
 }
 
 // ── TOPIC FILTER ──────────────────────────
+// ── FILTER PANEL ──────────────────────────
+function toggleFilterPanel() {
+  const panel = document.getElementById('filter-panel');
+  const btn   = document.getElementById('filter-btn');
+  const isOpen = panel.classList.contains('open');
+  panel.classList.toggle('open', !isOpen);
+  btn.classList.toggle('active', !isOpen);
+  btn.setAttribute('aria-expanded', String(!isOpen));
+  panel.setAttribute('aria-hidden', String(isOpen));
+}
+
+function closeFilterPanel() {
+  const panel = document.getElementById('filter-panel');
+  const btn   = document.getElementById('filter-btn');
+  if (!panel) return;
+  panel.classList.remove('open');
+  btn && btn.classList.remove('active');
+  btn && btn.setAttribute('aria-expanded', 'false');
+  panel.setAttribute('aria-hidden', 'true');
+}
+
+function updateFilterBadge() {
+  const badge    = document.getElementById('filter-badge');
+  const clearBtn = document.getElementById('filter-clear-btn');
+  if (!badge) return;
+  const count = (activeFilter !== 'all' ? 1 : 0) + (activeTopic !== 'all' ? 1 : 0);
+  if (count > 0) {
+    badge.textContent   = count;
+    badge.style.display = 'flex';
+    if (clearBtn) clearBtn.style.display = 'flex';
+  } else {
+    badge.style.display = 'none';
+    if (clearBtn) clearBtn.style.display = 'none';
+  }
+}
+
+// ── TOPIC FILTER ──────────────────────────
 function buildTopicFilter() {
   const topics = [...new Set(PROJECTS.map(p => p.topic))].sort();
   const row = document.getElementById('topic-filter-row');
   if (!row) return;
-
-  if (topics.length > 0) {
-    row.classList.add('has-topics');
-    // Use addEventListener instead of inline onclick to safely handle any topic name
-    row.innerHTML = topics.map(t =>
-      `<button class="topic-btn${activeTopic === t ? ' active' : ''}"
-               data-topic="${esc(t)}">${esc(t)}</button>`
-    ).join('');
-    row.querySelectorAll('.topic-btn').forEach(btn => {
-      btn.addEventListener('click', () => setTopic(btn.dataset.topic, btn));
-    });
-  }
+  row.innerHTML = topics.map(t =>
+    `<button class="fchip fchip-topic${activeTopic === t ? ' active' : ''}"
+             data-topic="${esc(t)}">${esc(t)}</button>`
+  ).join('');
+  row.querySelectorAll('.fchip-topic').forEach(btn => {
+    btn.addEventListener('click', () => setTopic(btn.dataset.topic, btn));
+  });
 }
 
 function setTopic(t, el) {
   activeTopic = (activeTopic === t) ? 'all' : t;
-  document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.fchip-topic').forEach(b => b.classList.remove('active'));
   if (activeTopic !== 'all' && el) el.classList.add('active');
-  // Also reset difficulty filter active state if the combo yields nothing,
-  // but just re-render — let the empty state handle the visual feedback
+  updateFilterBadge();
   renderSidebar(activeFilter, document.getElementById('search-input').value);
 }
 
@@ -915,6 +964,21 @@ function onTerminalInputKey(e) {
 }
 
 // ── SIDEBAR ───────────────────────────────
+function renderSkeletons(count = 18) {
+  const list = document.getElementById('proj-list');
+  if (!list) return;
+  list.innerHTML = Array.from({ length: count }, () => `
+    <div class="proj-skeleton" aria-hidden="true">
+      <div class="skel skel-num"></div>
+      <div class="skel-body">
+        <div class="skel skel-name"></div>
+        <div class="skel skel-meta"></div>
+      </div>
+    </div>
+  `).join('');
+}
+
+
 function toggleSidebar() {
   const sidebar = document.getElementById('sidebar');
   if (sidebar.classList.contains('open')) closeSidebar();
@@ -979,6 +1043,7 @@ function renderSidebar(filter = activeFilter, q = '') {
         <div class="proj-meta">
           <span class="diff-dot dot-${p.difficulty}" aria-hidden="true"></span>
           <span class="diff-text text-${p.difficulty}">${p.difficulty}</span>
+          ${p.author ? `<span class="proj-author" aria-label="by ${esc(p.author)}"><i class="fa-solid fa-user" aria-hidden="true"></i>${esc(p.author)}</span>` : ''}
         </div>
       </div>
       ${solved.has(p.id) ? '<i class="fa-solid fa-check solved-icon" aria-hidden="true"></i>' : ''}
@@ -995,20 +1060,22 @@ function renderSidebar(filter = activeFilter, q = '') {
 function clearAllFilters() {
   activeFilter = 'all';
   activeTopic  = 'all';
-  document.querySelectorAll('.ftab').forEach(b => (b.className = 'ftab'));
-  const allBtn = document.querySelector('.ftab.f-all') || document.querySelector('.ftab');
-  if (allBtn) allBtn.className = 'ftab f-all';
-  document.querySelectorAll('.topic-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.fchip[data-diff]').forEach(b => b.classList.remove('active'));
+  const allChip = document.querySelector('.fchip-all');
+  if (allChip) allChip.classList.add('active');
+  document.querySelectorAll('.fchip-topic').forEach(b => b.classList.remove('active'));
   document.getElementById('search-input').value = '';
   const clearBtn = document.getElementById('search-clear');
   if (clearBtn) clearBtn.style.display = 'none';
+  updateFilterBadge();
   renderSidebar('all', '');
 }
 
 function setFilter(f, el) {
   activeFilter = f;
-  document.querySelectorAll('.ftab').forEach(b => (b.className = 'ftab'));
-  el.className = `ftab f-${f}`;
+  document.querySelectorAll('.fchip[data-diff]').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  updateFilterBadge();
   renderSidebar(f, document.getElementById('search-input').value);
 }
 
@@ -1027,6 +1094,16 @@ function openProject(id) {
   dp.className   = `diff-pill pill-${p.difficulty}`;
   document.getElementById('pv-topic').textContent = p.topic;
   document.getElementById('pv-num').textContent   = `#${p.id + 1} / ${PROJECTS.length}`;
+
+  const authorEl = document.getElementById('pv-author');
+  if (authorEl) {
+    if (p.author) {
+      authorEl.innerHTML = `<i class="fa-solid fa-user" aria-hidden="true"></i>${esc(p.author)}`;
+      authorEl.style.display = 'inline-flex';
+    } else {
+      authorEl.style.display = 'none';
+    }
+  }
 
   const prevBtn = document.getElementById('prev-btn');
   const nextBtn = document.getElementById('next-btn');
@@ -1283,95 +1360,156 @@ function doResetProgress() {
 }
 
 // ── SOLVED STATE ──────────────────────────
+
 function normStr(s) {
   return s.split('\n').map(l => l.trim()).filter(Boolean).join('\n').toLowerCase();
 }
 
-function outputToPattern(expected) {
-  const lines = normStr(expected).split('\n');
-  const linePatterns = lines.map(line =>
-    line.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\d+\.?\d*/g, '[\\d.]+')
-  );
-  try {
-    return new RegExp('^' + linePatterns.join('\\n') + '$', 'i');
-  } catch (e) {
-    return null;
-  }
-}
+const FLOAT_EPSILON = 1e-4;
 
-const FLOAT_EPSILON = 1e-6;
+function isNumeric(s) { return s !== '' && !isNaN(Number(s)); }
 
 function floatsMatch(a, b) {
   const fa = parseFloat(a), fb = parseFloat(b);
   if (isNaN(fa) || isNaN(fb)) return false;
-  // Relative epsilon comparison
+  if (fa === fb) return true;
   const diff = Math.abs(fa - fb);
   const mag  = Math.max(Math.abs(fa), Math.abs(fb), 1);
   return diff / mag < FLOAT_EPSILON || diff < FLOAT_EPSILON;
 }
 
+function linesMatch(actLine, expLine) {
+  if (actLine === expLine) return true;
+  const aw = actLine.split(/\s+/).filter(Boolean);
+  const ew = expLine.split(/\s+/).filter(Boolean);
+  if (aw.length !== ew.length) return false;
+  return ew.every((et, i) => {
+    const at = aw[i];
+    if (et === at) return true;
+    if (isNumeric(et) && isNumeric(at)) return floatsMatch(et, at);
+    return false;
+  });
+}
+
 function outputMatches(actual, expected) {
-  const normActual   = normStr(actual);
-  const normExpected = normStr(expected);
+  const na = normStr(actual);
+  const ne = normStr(expected);
+  if (!ne) return false;
+  if (na === ne) return true;
 
-  if (normActual === normExpected) return true;
-  if (normActual.includes(normExpected)) return true;
+  const aLines = na.split('\n');
+  const eLines = ne.split('\n');
 
-  const actualLines   = normActual.split('\n');
-  const expectedLines = normExpected.split('\n');
+  // '...' wildcard lines — match segments in order
+  if (eLines.some(l => l === '...')) {
+    const segments = [];
+    let cur = [];
+    for (const l of eLines) {
+      if (l === '...') { if (cur.length) segments.push(cur); cur = []; segments.push(null); }
+      else cur.push(l);
+    }
+    if (cur.length) segments.push(cur);
 
-  if (actualLines.length === expectedLines.length) {
-    const structMatch = expectedLines.every((expLine, i) => {
-      const actLine  = actualLines[i];
-      const expLabel = expLine.replace(/[\d.\-+]+/g, '').trim();
-      const actLabel = actLine.replace(/[\d.\-+]+/g, '').trim();
-      if (expLabel && actLabel && expLabel === actLabel) return true;
-      const expPat = expLine.replace(/\d+\.?\d*/g, '#').replace(/\s+/g, ' ');
-      const actPat = actLine.replace(/\d+\.?\d*/g, '#').replace(/\s+/g, ' ');
-      if (expPat === actPat) return true;
-      const expWords = expLine.split(/\s+/).filter(Boolean);
-      const actWords = actLine.split(/\s+/).filter(Boolean);
-      if (expWords.length !== actWords.length) return false;
-      return expWords.every((ew, j) => {
-        const aw = actWords[j];
-        return ew === aw
-          || floatsMatch(ew, aw)   // fixed: use epsilon comparison, not just isNaN
-          || (['true','false'].includes(ew) && ew === aw);
-      });
-    });
-    if (structMatch) return true;
+    let pos = 0;
+    for (const seg of segments) {
+      if (seg === null) continue;
+      let found = false;
+      outer: for (let i = pos; i <= aLines.length - seg.length; i++) {
+        for (let j = 0; j < seg.length; j++) {
+          if (!linesMatch(aLines[i + j], seg[j])) continue outer;
+        }
+        pos = i + seg.length; found = true; break;
+      }
+      if (!found) return false;
+    }
+    const lastIsWild = segments[segments.length - 1] === null;
+    return lastIsWild || pos === aLines.length;
   }
 
-  const pat = outputToPattern(normExpected);
-  if (pat && pat.test(normActual)) return true;
-  return false;
+  if (aLines.length !== eLines.length) return false;
+  return eLines.every((el, i) => linesMatch(aLines[i], el));
+}
+
+function structurallyMatches(userOutput, refOutput) {
+  const uLines = normStr(userOutput).split('\n');
+  const rLines = normStr(refOutput).split('\n');
+  if (uLines.length !== rLines.length) return false;
+  return rLines.every((rl, i) => {
+    const ul = uLines[i];
+    if (ul === rl) return true;
+    const rt = rl.split(/\s+/).filter(Boolean);
+    const ut = ul.split(/\s+/).filter(Boolean);
+    if (rt.length !== ut.length) return false;
+    return rt.every((r, j) => {
+      const u = ut[j];
+      if (r === u) return true;
+      if (isNumeric(r)) return isNumeric(u);
+      return false;
+    });
+  });
+}
+
+function parseExampleInput(raw) {
+  if (!raw) return [];
+  return raw.split(/\n|,\s*then\s*|;\s*/i).map(s => s.trim()).filter(Boolean);
+}
+
+async function runSolutionSilently(solution, stdinValues) {
+  const realWrite    = pyodide.globals.get('_js_write');
+  const realWriteErr = pyodide.globals.get('_js_write_err');
+  const savedLineBuf = _lineBuf;
+  _lineBuf = '';
+  let refOutput = '';
+  pyodide.globals.set('_js_write',     (t) => { refOutput += t; });
+  pyodide.globals.set('_js_write_err', () => {});
+  pyodide.globals.set('_verify_stdin', pyodide.toPy([...stdinValues]));
+  await pyodide.runPythonAsync(`
+import builtins as _b, collections as _col
+_vq = _col.deque(_verify_stdin)
+_orig_input = _b.input
+async def _verify_input(prompt=''):
+    return str(_vq.popleft()) if _vq else '0'
+_b.input = _verify_input
+`);
+  await pyodide.runPythonAsync(transformCode(solution));
+  _lineBuf = savedLineBuf;
+  pyodide.globals.set('_js_write',     realWrite);
+  pyodide.globals.set('_js_write_err', realWriteErr);
+  await pyodide.runPythonAsync(`
+import builtins as _b
+_b.input = _orig_input
+del _orig_input, _verify_input, _vq
+`);
+  return refOutput.trim();
 }
 
 async function checkAndMarkSolved(actualOutput) {
   const p = PROJECTS[currentId];
   if (!p || solved.has(currentId)) return;
-
-  const checkable = p.examples.filter(ex => ex.output && ex.output.trim());
-  if (!checkable.length) return;
-
   const actual = actualOutput.trim();
   if (!actual) return;
+  const checkable = p.examples.filter(ex => ex.output && ex.output.trim());
+  if (!checkable.length) return;
 
   let isCorrect = false;
   const hasInput = p.solution.includes('input(');
 
-  const hasLabelOutput = hasInput &&
-    [...(p.solution.matchAll(/print\s*\([^)]*['"]((?:[A-Z][\w\s]*|[A-Z][\w]*)):\s/g))].length > 0;
-
-  if (hasLabelOutput) {
-    isCorrect = await verifyAgainstSolution(p, actual);
+  if (!hasInput) {
+    isCorrect = checkable.some(ex => outputMatches(actual, ex.output));
   } else {
     isCorrect = checkable.some(ex => outputMatches(actual, ex.output));
-
-    if (!isCorrect && hasInput) {
-      const expectedLines = checkable[0].output.trim().split('\n').length;
-      const actualLines   = actual.trim().split('\n').length;
-      isCorrect = actualLines === expectedLines && actual.trim().length > 0;
+    if (!isCorrect && pyodideReady) {
+      try {
+        for (const ex of checkable) {
+          const stdin  = parseExampleInput(ex.input);
+          const refOut = await runSolutionSilently(p.solution, stdin);
+          if (!refOut) continue;
+          if (outputMatches(actual, refOut)) { isCorrect = true; break; }
+          if (structurallyMatches(actual, refOut)) { isCorrect = true; break; }
+        }
+      } catch (e) {
+        console.warn('checkAndMarkSolved verify failed:', e);
+      }
     }
   }
 
@@ -1381,81 +1519,6 @@ async function checkAndMarkSolved(actualOutput) {
     updateCounter();
     updateSolvedBtn(true);
     renderSidebar(activeFilter, document.getElementById('search-input').value);
-  }
-}
-
-async function verifyAgainstSolution(p, userOutput) {
-  if (!pyodideReady) return false;
-  try {
-    const exampleWithInput = p.examples.find(ex => ex.input) || p.examples[0];
-    const rawInput  = exampleWithInput && exampleWithInput.input ? exampleWithInput.input : '';
-    const stdinQueue = rawInput.split(/\n|,\s*then\s*/i).map(s => s.trim()).filter(Boolean);
-
-    let refOutput = '';
-    const realWrite    = pyodide.globals.get('_js_write');
-    const realWriteErr = pyodide.globals.get('_js_write_err');
-    pyodide.globals.set('_js_write',     (t) => { refOutput += t; });
-    pyodide.globals.set('_js_write_err', () => {});
-
-    const savedLineBuf = _lineBuf;
-    _lineBuf = '';
-
-    pyodide.globals.set('_verify_stdin', pyodide.toPy([...stdinQueue]));
-    await pyodide.runPythonAsync(`
-import builtins as _b, collections as _collections_mod
-_vq = _collections_mod.deque(_verify_stdin)
-_orig_input = _b.input
-async def _verify_input(prompt=''):
-    return str(_vq.popleft()) if _vq else '0'
-_b.input = _verify_input
-`);
-
-    const solTransformed = transformCode(p.solution);
-    await pyodide.runPythonAsync(solTransformed);
-
-    _lineBuf = savedLineBuf;
-    pyodide.globals.set('_js_write',     realWrite);
-    pyodide.globals.set('_js_write_err', realWriteErr);
-    await pyodide.runPythonAsync(`
-import builtins as _b
-_b.input = _orig_input
-del _orig_input, _verify_input, _vq
-`);
-
-    const refTrimmed  = refOutput.trim();
-    const userTrimmed = userOutput.trim();
-    if (!refTrimmed) return false;
-
-    const refLines  = normStr(refTrimmed).split('\n');
-    const userLines = normStr(userTrimmed).split('\n');
-    if (refLines.length !== userLines.length) return false;
-
-    // For labelled-output problems the user may have entered DIFFERENT inputs
-    // than the example (e.g. 1 & 2 instead of 10 & 5), so numeric values will
-    // legitimately differ. We only verify:
-    //   1. Same number of output lines  (checked above)
-    //   2. Every non-numeric label token on each line matches exactly
-    //   3. Every position that is numeric in the ref is also numeric in the user
-    //      (confirms the user printed a number there, not a word)
-    const isNumTok = (s) => !isNaN(parseFloat(s)) && isFinite(s);
-
-    return refLines.every((refLine, i) => {
-      const userLine   = userLines[i];
-      const refTokens  = refLine.split(/\s+/).filter(Boolean);
-      const userTokens = userLine.split(/\s+/).filter(Boolean);
-      if (refTokens.length !== userTokens.length) return false;
-      return refTokens.every((rt, j) => {
-        const ut = userTokens[j];
-        if (rt === ut) return true;              // exact match (labels, punctuation)
-        if (isNumTok(rt)) return isNumTok(ut);  // ref=number -> user must also print a number (any value ok)
-        if (['true','false'].includes(rt)) return rt === ut;
-        return false;                            // non-numeric label mismatch
-      });
-    });
-  } catch (e) {
-    console.warn('verifyAgainstSolution failed:', e);
-    const checkable = p.examples.filter(ex => ex.output && ex.output.trim());
-    return checkable.some(ex => outputMatches(userOutput, ex.output));
   }
 }
 
@@ -1666,10 +1729,12 @@ function bindKeys() {
         if (e.key === '3') { e.preventDefault(); switchTab('solution'); }
       }
     }
-    // Escape: close modals / sidebar
+    // Escape: close modals / sidebar / filter panel / changelog
     if (e.key === 'Escape') {
       closeResetModal();
       closeSidebar();
+      closeFilterPanel();
+      closeChangelog();
     }
   });
 }
@@ -1681,6 +1746,145 @@ function clearSearch() {
   if (clearBtn) clearBtn.style.display = 'none';
   renderSidebar(activeFilter, '');
   inp.focus();
+}
+
+// ── CHANGELOG ─────────────────────────────
+let clOpen   = false;
+let clLoaded = false;
+
+function toggleChangelog() { clOpen ? closeChangelog() : openChangelog(); }
+
+function openChangelog() {
+  clOpen = true;
+  document.getElementById('cl-panel').classList.add('open');
+  document.getElementById('cl-backdrop').classList.add('open');
+  document.getElementById('cl-panel').setAttribute('aria-hidden', 'false');
+  document.getElementById('changelog-btn').classList.add('active');
+  if (!clLoaded) loadChangelog();
+}
+
+function closeChangelog() {
+  clOpen = false;
+  document.getElementById('cl-panel').classList.remove('open');
+  document.getElementById('cl-backdrop').classList.remove('open');
+  document.getElementById('cl-panel').setAttribute('aria-hidden', 'true');
+  document.getElementById('changelog-btn').classList.remove('active');
+}
+
+// Minimal but complete markdown → HTML renderer
+function renderMd(raw) {
+  if (!raw) return '';
+  const lines = raw.split('\n');
+  let html = '';
+  let inPre = false, preLang = '', preBuf = '';
+  let inUl = false, inOl = false;
+
+  function closeLists() {
+    if (inUl) { html += '</ul>'; inUl = false; }
+    if (inOl) { html += '</ol>'; inOl = false; }
+  }
+
+  function inlineEsc(s) {
+    // Escape HTML first, then apply inline markdown
+    s = s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    // Code spans (before other replacements)
+    s = s.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // Bold + italic
+    s = s.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+    s = s.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    s = s.replace(/__(.+?)__/g, '<strong>$1</strong>');
+    s = s.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    s = s.replace(/_(.+?)_/g, '<em>$1</em>');
+    // Strikethrough
+    s = s.replace(/~~(.+?)~~/g, '<del>$1</del>');
+    // Links
+    s = s.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    return s;
+  }
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+
+    // Fenced code block open
+    if (!inPre && /^```/.test(line)) {
+      closeLists();
+      inPre = true;
+      preLang = line.slice(3).trim();
+      preBuf = '';
+      continue;
+    }
+    // Fenced code block close
+    if (inPre && /^```/.test(line)) {
+      html += `<pre><code${preLang ? ` class="language-${esc(preLang)}"` : ''}>${preBuf.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code></pre>`;
+      inPre = false; preBuf = ''; preLang = '';
+      continue;
+    }
+    if (inPre) { preBuf += (preBuf ? '\n' : '') + line; continue; }
+
+    // Horizontal rule
+    if (/^(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) {
+      closeLists(); html += '<hr>'; continue;
+    }
+    // Headings
+    const hm = line.match(/^(#{1,6})\s+(.+)/);
+    if (hm) {
+      closeLists();
+      const level = hm[1].length;
+      html += `<h${level}>${inlineEsc(hm[2])}</h${level}>`;
+      continue;
+    }
+    // Blockquote
+    if (/^>\s?/.test(line)) {
+      closeLists();
+      html += `<blockquote>${inlineEsc(line.replace(/^>\s?/, ''))}</blockquote>`;
+      continue;
+    }
+    // Unordered list
+    const ulm = line.match(/^[-*+]\s+(.+)/);
+    if (ulm) {
+      if (inOl) { html += '</ol>'; inOl = false; }
+      if (!inUl) { html += '<ul>'; inUl = true; }
+      html += `<li>${inlineEsc(ulm[1])}</li>`;
+      continue;
+    }
+    // Ordered list
+    const olm = line.match(/^\d+\.\s+(.+)/);
+    if (olm) {
+      if (inUl) { html += '</ul>'; inUl = false; }
+      if (!inOl) { html += '<ol>'; inOl = true; }
+      html += `<li>${inlineEsc(olm[1])}</li>`;
+      continue;
+    }
+    // Blank line
+    if (!line.trim()) {
+      closeLists();
+      html += '';
+      continue;
+    }
+    // Paragraph
+    closeLists();
+    html += `<p>${inlineEsc(line)}</p>`;
+  }
+
+  closeLists();
+  if (inPre && preBuf) html += `<pre><code>${preBuf.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')}</code></pre>`;
+  return html;
+}
+
+async function loadChangelog() {
+  const body = document.getElementById('cl-body');
+  try {
+    const res = await fetch(
+      'https://raw.githubusercontent.com/corecommit/Stdin/main/CHANGELOG.md',
+      { cache: 'no-cache' }
+    );
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const md = await res.text();
+    clLoaded = true;
+    body.innerHTML = `<div class="cl-md">${renderMd(md)}</div>`;
+  } catch (e) {
+    body.innerHTML = `<div class="cl-error"><i class="fa-solid fa-triangle-exclamation"></i> Could not load CHANGELOG.md: ${esc(e.message)}</div>`;
+  }
 }
 
 // ── UTILS ─────────────────────────────────

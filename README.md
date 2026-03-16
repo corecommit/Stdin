@@ -25,6 +25,7 @@ There are **285 projects** spanning 4 difficulty levels and 33 topics, from prin
 - **Keyboard-first** — `Ctrl+Enter` runs, `Alt+←/→` navigates projects, `Ctrl+1/2/3` switches tabs, `Escape` closes modals
 - **Mobile-friendly** — fully responsive, touch-compatible resize handle, 44px tap targets
 - **Light + dark mode** — follows system preference via `prefers-color-scheme`
+- **Changelog panel** — fetches and renders `CHANGELOG.md` from this repo
 - **No dependencies to install** — everything loads from CDN; works offline after first load
 
 ---
@@ -45,15 +46,67 @@ There are **285 projects** spanning 4 difficulty levels and 33 topics, from prin
 ## Project structure
 
 ```
-index.html      Main shell — layout, header, sidebar, modals
-app.js          All application logic — editor, Pyodide init, terminal I/O,
-                sidebar, routing, solve verification, autocomplete
-styles.css      All styles — theme variables, responsive breakpoints,
-                CodeMirror theme, animations
-projects.js     Project data — 285 entries, each with title, difficulty,
-                topic, description, examples, hints, starter code,
-                solution, and explanation
+index.html            Main shell — layout, header, sidebar, modals
+app.js                All application logic — editor, Pyodide init, terminal I/O,
+                      sidebar, routing, solve verification, autocomplete, changelog
+styles.css            All styles — theme variables, responsive breakpoints,
+                      CodeMirror theme, animations
+projects.js           Loader — merges all difficulty files and auto-assigns IDs
+CHANGELOG.md          Rendered in the in-app changelog panel
+example-project.js    Annotated template for adding new problems
+
+projects/
+  easy.js             Easy problems   (PROJECTS_EASY)
+  medium.js           Medium problems (PROJECTS_MEDIUM)
+  hard.js             Hard problems   (PROJECTS_HARD)
+  expert.js           Expert problems (PROJECTS_EXPERT)
 ```
+
+---
+
+## Adding projects
+
+Use `example-project.js` as a fully annotated template. The short version:
+
+**1. Pick the right file** based on difficulty:
+
+| Difficulty | File |
+|---|---|
+| Easy | `projects/easy.js` |
+| Medium | `projects/medium.js` |
+| Hard | `projects/hard.js` |
+| Expert | `projects/expert.js` |
+
+**2. Append a new object** inside the array at the bottom of that file, separated by a comma:
+
+```js
+// projects/medium.js
+const PROJECTS_MEDIUM = [
+  // ... existing projects ...
+  ,{
+    title: 'Reverse Words',
+    difficulty: 'medium',
+    topic: 'Strings',
+    description: 'Reverse the order of words in a sentence.',
+    examples: [
+      { input: 'hello world', output: 'world hello' }
+    ],
+    hints: ['Split the string into a list of words', 'Reverse the list', 'Join with a space'],
+    starter: 's = input("Sentence: ")\n# Your code here\n',
+    solution: 's = input("Sentence: ")\nprint(" ".join(s.split()[::-1]))',
+    explanation: '<code>split()</code> breaks the string into words, <code>[::-1]</code> reverses the list, <code>join()</code> reassembles it.',
+    author: 'yourname',  // optional
+  }
+];
+```
+
+**3. No IDs needed** — `projects.js` auto-assigns them based on position (easy → medium → hard → expert).
+
+**4. Output matching** — the `output` field in your example is what the verifier checks against. Tips:
+- Numbers are matched with float tolerance — `15.0` matches `15`
+- Use `\n` for multiline output
+- Use `...` on its own line as a wildcard for long or variable sections
+- For `input()` problems, the solution is run silently to verify structure — so the user can type different values than your example and still get marked solved
 
 ---
 
@@ -61,43 +114,12 @@ projects.js     Project data — 285 entries, each with title, difficulty,
 
 When you run code, Stdin captures stdout and checks it against the expected output for the current project.
 
-For problems with fixed output (no `input()`), it does a structural match — whitespace-normalised, with float tolerance.
+For problems with **fixed output** (no `input()`), it does a structural match — whitespace-normalised, with float tolerance.
 
-For problems where output depends on what the user types, Stdin distinguishes two cases:
-
-**Labelled output** (e.g. `Sum: 15.0`, `Diff: 5.0`) — The solution is silently re-run with the example's inputs to generate a reference. Your output is then compared label-by-label: the text labels must match exactly, but the numeric values are accepted regardless of what you typed in. This means entering `1` and `2` instead of the example's `10` and `5` still marks the problem solved, as long as your code prints the right labels.
-
-**Plain output** (e.g. a reversed string, odd/even) — Your output is matched directly against the example. If it doesn't match (because you typed a different input), Stdin falls back to checking that your output has the same number of lines as expected and is non-empty — accepting it as correct if the structure is right.
-
----
-
-## Adding projects
-
-Each project is an object in `projects.js`:
-
-```js
-{
-  id: 285,                      // sequential, unique
-  title: 'My Project',
-  difficulty: 'medium',         // easy | medium | hard | expert
-  topic: 'Strings',
-  description: 'HTML allowed for <code>inline code</code>.',
-  examples: [
-    {
-      input: 'hello',           // optional — shown in problem tab
-      output: 'HELLO',          // used for solve verification
-      explanation: 'str.upper() converts all characters.'
-    }
-  ],
-  hints: [
-    'Try the str.upper() method',
-    'Methods are called with dot notation: s.upper()'
-  ],
-  starter: 's = input("Enter text: ")\n# Your code here\n',
-  solution: 's = input("Enter text: ")\nprint(s.upper())',
-  explanation: '<code>str.upper()</code> returns a new string with all characters uppercased.'
-}
-```
+For problems where **output depends on user input**, Stdin runs the reference solution silently with the example's inputs, then compares the structure of your output against the reference:
+- Non-numeric tokens (labels like `Sum:`, `Result:`) must match exactly
+- Numeric positions just need to contain a number — the value can differ
+- This means entering `1` and `2` instead of the example's `10` and `5` still marks the problem solved, as long as your code prints the right structure
 
 ---
 
