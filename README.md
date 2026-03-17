@@ -1,10 +1,8 @@
 # Stdin — Learn Python by Doing
 
-<<<<<<< HEAD
+
 **[stdin.vercel.app](https://stdin.vercel.app)**
 
-=======
->>>>>>> 62cb6965f2109107d35b5750ae49c361962ced30
 Learn Python by doing. Write and run real code in a live in-browser interpreter across 285 projects — from Hello World to dynamic programming — with no installs and no server required.
 
 ---
