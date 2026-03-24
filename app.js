@@ -1,5 +1,5 @@
 // ═══════════════════════════════════════════
-// PyLab — app.js
+// Stdin — app.js
 // ═══════════════════════════════════════════
 
 // ── STATE ─────────────────────────────────
@@ -2620,7 +2620,12 @@ async function loadGlobalLeaderboard(tab) {
       });
       const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]).slice(0, 20);
 
-      body.innerHTML = sorted.length ? sorted.map(([name, count], i) => `
+      body.innerHTML = sorted.length ? `
+        <div class="glb-row glb-header">
+          <span class="glb-pos">#</span>
+          <span class="glb-name">User</span>
+          <span class="glb-val">Solved</span>
+        </div>` + sorted.map(([name, count], i) => `
         <div class="glb-row">
           <span class="glb-pos">${i === 0 ? '<i class="fa-solid fa-trophy" style="color:#fbbf24"></i>' : i === 1 ? '<i class="fa-solid fa-trophy" style="color:#94a3b8"></i>' : i === 2 ? '<i class="fa-solid fa-trophy" style="color:#b45309"></i>' : `#${i+1}`}</span>
           <span class="glb-name">${esc(name)}</span>
@@ -2646,7 +2651,12 @@ async function loadGlobalLeaderboard(tab) {
         .map(([name, times]) => [name, Math.round(times.reduce((a, b) => a + b) / times.length)])
         .sort((a, b) => a[1] - b[1]).slice(0, 20);
 
-      body.innerHTML = sorted.length ? sorted.map(([name, avg], i) => `
+      body.innerHTML = sorted.length ? `
+        <div class="glb-row glb-header">
+          <span class="glb-pos">#</span>
+          <span class="glb-name">User</span>
+          <span class="glb-val">Avg time</span>
+        </div>` + sorted.map(([name, avg], i) => `
         <div class="glb-row">
           <span class="glb-pos">${i === 0 ? '<i class="fa-solid fa-trophy" style="color:#fbbf24"></i>' : i === 1 ? '<i class="fa-solid fa-trophy" style="color:#94a3b8"></i>' : i === 2 ? '<i class="fa-solid fa-trophy" style="color:#b45309"></i>' : `#${i+1}`}</span>
           <span class="glb-name">${esc(name)}</span>
@@ -2662,7 +2672,13 @@ async function loadGlobalLeaderboard(tab) {
       if (error) throw error;
 
       const diffColor = { easy: 'var(--easy)', medium: 'var(--medium)', hard: 'var(--hard)', expert: 'var(--expert)' };
-      body.innerHTML = data.length ? data.map(r => `
+      body.innerHTML = data.length ? `
+        <div class="glb-row glb-header">
+          <span class="glb-name">User</span>
+          <span class="glb-val">Mode</span>
+          <span class="glb-val" style="flex:1">Problem</span>
+          <span class="glb-val">Time</span>
+        </div>` + data.map(r => `
         <div class="glb-row">
           <span class="glb-name">${esc(r.users?.username || 'unknown')}</span>
           <span class="glb-val" style="color:${diffColor[r.difficulty] || 'var(--text-faint)'}; font-size:10px; margin-right:6px">${r.difficulty}</span>

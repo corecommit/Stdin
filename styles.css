@@ -1439,6 +1439,18 @@ header {
   padding: 10px 16px; border-bottom: 1px solid var(--border);
   transition: background var(--t);
 }
+.glb-header {
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 4px;
+  padding-bottom: 6px;
+}
+.glb-header span {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
 .glb-row:hover { background: var(--surface2); }
 .glb-row:last-child { border-bottom: none; }
 .glb-pos { font-family: var(--font-mono); font-size: 10px; color: var(--text-faint); width: 20px; flex-shrink: 0; }
