@@ -4,6 +4,17 @@ All notable changes to **stdin** are documented here.
 
 ---
 
+## v0.4.0 — 24 Mar 2026
+
+### Added
+- **OG image** (`og-image.svg`) — 1200×630 social preview card showing a syntax-highlighted code editor, terminal output, key stats, and a leaderboard preview with USER / MODE / PROBLEM / TIME columns
+- **Leaderboard header row** — column labels (User, Mode, Problem, Time) now appear above leaderboard entries in both the per-problem and global leaderboard panels
+
+### Fixed
+- Leaderboard entries had no column headers — table was unreadable without context labels
+
+---
+
 ## v0.3.0 — 16 Mar 2026
 
 ### Added
