@@ -4,26 +4,46 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
+<!-- Google Search Console verification -->
+<meta name="google-site-verification" content="3KxqtSEWNgakHePmf3Z9XVF58O-wwhlb26sSIvsKMGk">
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-V2R8ZN22RS"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+  gtag('config', 'G-V2R8ZN22RS');
+</script>
+
 <!-- Primary SEO -->
 <title>Stdin — Learn Python by Doing</title>
-<meta name="description" content="Learn Python by doing. Write and run real code in a live in-browser interpreter across 285 projects — from Hello World to dynamic programming — with no installs and no server required.">
-<meta name="keywords" content="learn python, python practice, python projects, python exercises, python coding, python in browser, python interpreter, pyodide, coding challenges, python beginner, python advanced">
+<meta name="description" content="Learn Python by doing. Solve 285 Python projects in a live in-browser interpreter — from Hello World to dynamic programming. Create a free account to track streaks, compete on the leaderboard, and sync progress across devices. No installs required.">
+<meta name="keywords" content="learn python, python practice, python projects, python exercises, python coding, python in browser, python interpreter, pyodide, coding challenges, python beginner, python advanced, python leaderboard, coding streak, python online compiler">
 <meta name="author" content="corecommit">
 <meta name="robots" content="index, follow">
 <link rel="canonical" href="https://stdin.vercel.app/">
+
+<!-- Preconnect to CDN origins for faster resource loading -->
+<link rel="preconnect" href="https://cdnjs.cloudflare.com">
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<link rel="preconnect" href="https://fonts.googleapis.com">
 
 <!-- Open Graph (Facebook, Discord, WhatsApp, LinkedIn) -->
 <meta property="og:type"        content="website">
 <meta property="og:url"         content="https://stdin.vercel.app/">
 <meta property="og:title"       content="Stdin — Learn Python by Doing">
-<meta property="og:description" content="Write and run real Python code in your browser across 285 projects. No installs, no server, no sign-up required.">
-<meta property="og:image"       content="https://stdin.vercel.app/og-image.png">
+<meta property="og:description" content="285 Python projects. Live in-browser Python 3.12 interpreter. Free accounts, daily streaks, and a global leaderboard. No installs, no setup — just code.">
+<meta property="og:image"       content="https://stdin.vercel.app/og-image.svg">
+<meta property="og:image:type"  content="image/svg+xml">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
 
 <!-- Twitter Card -->
 <meta name="twitter:card"        content="summary_large_image">
 <meta name="twitter:title"       content="Stdin — Learn Python by Doing">
-<meta name="twitter:description" content="Write and run real Python code in your browser across 285 projects. No installs, no server, no sign-up required.">
-<meta name="twitter:image"       content="https://stdin.vercel.app/og-image.png">
+<meta name="twitter:description" content="285 Python projects. Live in-browser Python 3.12 interpreter. Free accounts, daily streaks, and a global leaderboard. No installs, no setup — just code.">
+<meta name="twitter:image"       content="https://stdin.vercel.app/og-image.svg">
 
 <!-- JSON-LD Structured Data -->
 <script type="application/ld+json">
@@ -32,9 +52,23 @@
   "@type": "WebApplication",
   "name": "Stdin",
   "url": "https://stdin.vercel.app/",
-  "description": "Learn Python by doing. Write and run real code in a live in-browser interpreter across 285 projects — from Hello World to dynamic programming — with no installs and no server required.",
+  "description": "Learn Python by doing. Solve 285 Python projects in a live in-browser interpreter — from Hello World to dynamic programming. Create a free account to track streaks, compete on the leaderboard, and sync progress across devices.",
   "applicationCategory": "EducationalApplication",
   "operatingSystem": "Any",
+  "browserRequirements": "Requires a modern browser with WebAssembly support",
+  "dateModified": "2026-03-24",
+  "inLanguage": "en",
+  "isAccessibleForFree": true,
+  "featureList": [
+    "285 Python projects across 4 difficulty levels",
+    "Live Python 3.12 interpreter via WebAssembly",
+    "Interactive terminal with input() support",
+    "Auto-verification of solutions",
+    "Global leaderboard with solve times",
+    "Free account registration with streak tracking",
+    "Progress sync across devices",
+    "No installation required"
+  ],
   "offers": {
     "@type": "Offer",
     "price": "0",
@@ -45,10 +79,9 @@
     "name": "corecommit",
     "url": "https://github.com/corecommit"
   },
-  "keywords": "Python, learn Python, coding practice, programming exercises, in-browser Python"
+  "keywords": "Python, learn Python, coding practice, programming exercises, in-browser Python, Pyodide, WebAssembly, leaderboard, coding streak"
 }
 </script>
-<title>Stdin — Python Projects</title>
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><rect width='32' height='32' rx='6' fill='%23141414'/><rect x='1' y='1' width='30' height='30' rx='5' fill='none' stroke='%23333' stroke-width='1'/><polyline points='10,10 5,16 10,22' fill='none' stroke='%23d8d8d8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/><polyline points='22,10 27,16 22,22' fill='none' stroke='%23d8d8d8' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'/><line x1='18' y1='9' x2='14' y2='23' stroke='%23d8d8d8' stroke-width='2' stroke-linecap='round'/></svg>">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/codemirror/5.65.16/codemirror.min.css">
@@ -76,7 +109,7 @@
     <button class="hamburger" id="hamburger-btn" onclick="toggleSidebar()" title="Toggle sidebar" aria-label="Toggle sidebar">
       <i class="fa-solid fa-bars"></i>
     </button>
-    <div class="logo"><i class="fa-solid fa-terminal"></i> stdin</div>
+    <div class="logo" onclick="goHome()" title="Back to home" style="cursor:pointer"><i class="fa-solid fa-terminal"></i> stdin</div>
   </div>
   <div class="header-right">
     <span id="solved-count" class="hbadge"><i class="fa-solid fa-circle-check"></i><span class="solved-nums"> 0 / 0</span><span class="solved-text"> solved</span></span>

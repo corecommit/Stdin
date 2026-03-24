@@ -2,3 +2,6 @@ User-agent: *
 Allow: /
 
 Sitemap: https://stdin.vercel.app/sitemap.xml
+
+# IndexNow key file: https://stdin.vercel.app/<YOUR_INDEXNOW_KEY>.txt
+# Generate a key at https://www.bing.com/webmasters/indexnow
