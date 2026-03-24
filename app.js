@@ -97,20 +97,31 @@ document.addEventListener('DOMContentLoaded', () => {
   // Pre-load Pyodide — store the shared promise
   pyodidePromise = initPyodide();
 
-  // Fetch latest commit SHA for version badge (non-blocking)
-  fetch('https://api.github.com/repos/corecommit/Stdin/commits/HEAD', {
-    headers: { 'Accept': 'application/vnd.github+json' }
-  })
-    .then(r => r.ok ? r.json() : Promise.reject())
-    .then(c => {
-      const sha = c.sha.slice(0, 7);
-      const w = document.getElementById('welcome-commit-sha');
-      if (w) w.textContent = sha;
+  // Fetch latest commit SHA for version badge (non-blocking); cached per session
+  const cachedSha = sessionStorage.getItem('pylab_commit_sha');
+  if (cachedSha) {
+    const w = document.getElementById('welcome-commit-sha');
+    const c = document.getElementById('commit-sha');
+    if (w) w.textContent = cachedSha;
+    if (c) c.textContent = cachedSha;
+  } else {
+    fetch('https://api.github.com/repos/corecommit/Stdin/commits/HEAD', {
+      headers: { 'Accept': 'application/vnd.github+json' }
     })
-    .catch(() => {
-      const w = document.getElementById('welcome-commit-sha');
-      if (w) w.textContent = 'unknown';
-    });
+      .then(r => r.ok ? r.json() : Promise.reject())
+      .then(c => {
+        const sha = c.sha.slice(0, 7);
+        sessionStorage.setItem('pylab_commit_sha', sha);
+        const w = document.getElementById('welcome-commit-sha');
+        const h = document.getElementById('commit-sha');
+        if (w) w.textContent = sha;
+        if (h) h.textContent = sha;
+      })
+      .catch(() => {
+        const w = document.getElementById('welcome-commit-sha');
+        if (w) w.textContent = 'unknown';
+      });
+  }
 });
 
 // ── WELCOME STATS ─────────────────────────
@@ -128,6 +139,16 @@ function updateWelcomeStats() {
         <span class="stat-lbl">${labels[k]}</span>
       </div>
     `).join('');
+}
+
+// ── HOME NAVIGATION ───────────────────────
+function goHome() {
+  currentId = null;
+  document.getElementById('welcome').style.display      = '';
+  document.getElementById('project-view').style.display = 'none';
+  updateWelcomeStats();
+  updateStreak();
+  updateTopicProgress();
 }
 
 // Start the first unsolved project (or project 0 if all solved)
@@ -739,11 +760,13 @@ function bootDismiss() {
 // ── PYODIDE INIT ──────────────────────────
 async function initPyodide() {
   if (pyodideReady) return;
-  if (pyodidePromise && !pyodideReady) return pyodidePromise;
+  if (pyodidePromise) return pyodidePromise; // share in-flight promise — fixed guard
 
   setPyodideBadge('loading');
   bootProgress(10, 'Loading Python runtime…');
 
+  // Must assign pyodidePromise before the first await so concurrent callers share it
+  pyodidePromise = (async () => {
   try {
     pyodide = await loadPyodide();
     bootProgress(70, 'Setting up environment…');
@@ -795,6 +818,8 @@ builtins.input = _async_input
     setStatus('error', 'load failed');
     setTimeout(bootDismiss, 1800);
   }
+  })();
+  return pyodidePromise;
 }
 
 function setPyodideBadge(state) {
@@ -1322,6 +1347,7 @@ function openProject(id) {
   hideSubmitButton();
   termHideInput();
   setStatus('idle', 'idle');
+  _lbLastLoadedId = null; // reset leaderboard cache for new project
   _lineBuf      = '';
   waitingInput  = false;
   inputResolve  = null;
@@ -1589,6 +1615,9 @@ function doResetProgress() {
   solved = new Set();
   localStorage.removeItem('pylab_solved');
   localStorage.removeItem('pylab_streak');
+  localStorage.removeItem('pylab_code');
+  // Clear in-memory saved code so the editor reloads starters
+  Object.keys(savedCode).forEach(k => delete savedCode[k]);
   updateCounter();
   renderSidebar(activeFilter, document.getElementById('search-input').value);
   if (currentId !== null) updateSolvedBtn();
@@ -1710,15 +1739,19 @@ async def _verify_input(prompt=''):
     return str(_vq.popleft()) if _vq else '0'
 _b.input = _verify_input
 `);
-  await pyodide.runPythonAsync(transformCode(solution));
-  _lineBuf = savedLineBuf;
-  pyodide.globals.set('_js_write',     realWrite);
-  pyodide.globals.set('_js_write_err', realWriteErr);
-  await pyodide.runPythonAsync(`
+  try {
+    await pyodide.runPythonAsync(transformCode(solution));
+  } finally {
+    _lineBuf = savedLineBuf;
+    pyodide.globals.set('_js_write',     realWrite);
+    pyodide.globals.set('_js_write_err', realWriteErr);
+    // Always restore builtins.input even if silent run throws
+    await pyodide.runPythonAsync(`
 import builtins as _b
 _b.input = _orig_input
 del _orig_input, _verify_input, _vq
 `);
+  }
   return refOutput.trim();
 }
 
@@ -1734,8 +1767,7 @@ async function checkAndMarkSolved(actualOutput) {
   const hasInput = p.solution.includes('input(');
 
   // Step 1: test against ALL examples with direct output match
-  isCorrect = checkable.every(ex => outputMatches(actual, ex.output))
-           || checkable.some(ex  => outputMatches(actual, ex.output));
+  isCorrect = checkable.every(ex => outputMatches(actual, ex.output));
 
   // Step 2: for input() problems, run reference solution and compare structure
   if (!isCorrect && hasInput && pyodideReady) {
@@ -2483,7 +2515,11 @@ async function submitSolveToLeaderboard(projectId, timeMs) {
 }
 
 // ── PER-PROBLEM LEADERBOARD ───────────────
+let _lbLastLoadedId = null;
+
 async function loadProblemLeaderboard(projectId) {
+  if (_lbLastLoadedId === projectId) return; // already loaded for this problem
+  _lbLastLoadedId = projectId;
   const panel = document.getElementById('lb-panel');
   panel.innerHTML = '<div class="lb-loading"><i class="fa-solid fa-circle-notch spin"></i> Loading…</div>';
   initSupabase();
@@ -2568,9 +2604,12 @@ async function loadGlobalLeaderboard(tab) {
 
   try {
     if (tab === 'most-solved') {
+      // NOTE: ideally aggregate this server-side via a Supabase RPC to avoid
+      // fetching all rows. For now, cap at 500 to limit bandwidth.
       const { data, error } = await sb.from('solves')
         .select('user_id, users(username)')
-        .order('user_id');
+        .order('user_id')
+        .limit(500);
       if (error) throw error;
 
       // Count per user
